@@ -1,0 +1,7 @@
+export { EntradaEstoqueModal } from './entrada-estoque-modal'
+export { SaidaEstoqueModal } from './saida-estoque-modal'
+export { EditarProdutoModal } from './editar-produto-modal'
+export { ExcluirProdutoModal } from './excluir-produto-modal'
+export { VisualizarEstoqueModal } from './visualizar-estoque-modal'
+export { HistoricoProdutoModal } from './historico-produto-modal'
+export { EstornarMovimentacaoModal } from './estornar-movimentacao-modal'

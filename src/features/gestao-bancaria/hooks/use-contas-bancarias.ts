@@ -1,0 +1,83 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import { useApi } from '@/hooks/use-api'
+
+export interface ContaBancaria {
+  id: string
+  unidadeId: string | null
+  nome: string
+  banco: string | null
+  agencia: string | null
+  conta: string | null
+  tipo: 'corrente' | 'poupanca' | 'investimento'
+  saldoInicial: number
+  saldoAtual: number
+  saldoConciliado: number
+  movimentosTotal: number
+  movimentosConciliados: number
+  ativo: boolean
+  createdAt: string
+}
+
+export interface ContaBancariaInput {
+  nome: string
+  banco?: string
+  agencia?: string
+  conta?: string
+  tipo: 'corrente' | 'poupanca' | 'investimento'
+  saldoInicial: number
+}
+
+interface ListResponse {
+  data: ContaBancaria[]
+}
+
+interface ItemResponse {
+  data: ContaBancaria
+}
+
+export function useContasBancarias() {
+  const api = useApi()
+  const [data, setData] = useState<ContaBancaria[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const res = await api.get<ListResponse>('/api/gestao-bancaria')
+      setData(res.data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar contas bancárias')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [api])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const create = useCallback(
+    async (payload: ContaBancariaInput) => {
+      const res = await api.post<ItemResponse>('/api/gestao-bancaria', payload)
+      setData((current) => [
+        ...current,
+        {
+          ...res.data,
+          saldoAtual: res.data.saldoInicial,
+          saldoConciliado: res.data.saldoInicial,
+          movimentosTotal: 0,
+          movimentosConciliados: 0,
+        },
+      ])
+      await load()
+      return res.data
+    },
+    [api, load],
+  )
+
+  return { data, isLoading, error, reload: load, create }
+}

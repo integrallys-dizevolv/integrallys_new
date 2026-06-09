@@ -1,0 +1,1271 @@
+{
+  "generatedAt": "2026-05-22T13:51:01.641Z",
+  "schema": "public",
+  "tables": {
+    "agenda_bloqueios": [
+      "id",
+      "profissional_id",
+      "unidade_id",
+      "data_inicio",
+      "data_fim",
+      "horario_inicio",
+      "horario_fim",
+      "dia_inteiro",
+      "tipo",
+      "justificativa",
+      "created_by",
+      "created_at"
+    ],
+    "agendamentos": [
+      "id",
+      "unidade_id",
+      "paciente_id",
+      "profissional_id",
+      "criado_por_id",
+      "data_agendamento",
+      "horario_inicio",
+      "horario_fim",
+      "status",
+      "observacoes",
+      "created_at",
+      "updated_at",
+      "tipo",
+      "modalidade_atendimento",
+      "plataforma_online",
+      "url_online",
+      "valor_procedimento",
+      "titulo",
+      "local",
+      "participantes",
+      "tipo_encaixe",
+      "fora_janela",
+      "motivo_encaixe"
+    ],
+    "agendamentos_pagamentos": [
+      "id",
+      "agendamento_id",
+      "valor",
+      "metodo",
+      "status",
+      "pago_em",
+      "observacoes",
+      "created_at",
+      "updated_at"
+    ],
+    "anamneses": [
+      "id",
+      "paciente_id",
+      "profissional_id",
+      "data_anamnese",
+      "tipo",
+      "queixa",
+      "imc",
+      "peso",
+      "gordura",
+      "altura",
+      "massa_muscular",
+      "gordura_visceral",
+      "massa_ossea",
+      "agua_corporal",
+      "created_at",
+      "updated_at"
+    ],
+    "audit_log": [
+      "id",
+      "actor_user_id",
+      "unidade_id",
+      "acao",
+      "recurso",
+      "descricao",
+      "ip",
+      "detalhes",
+      "created_at"
+    ],
+    "caixa_movimentos": [
+      "id",
+      "unidade_id",
+      "usuario_id",
+      "descricao",
+      "tipo",
+      "valor",
+      "data_movimento",
+      "created_at",
+      "updated_at",
+      "sessao_id",
+      "forma",
+      "origem",
+      "operador_nome",
+      "bandeira",
+      "parcelas",
+      "valor_parcela",
+      "operador_id"
+    ],
+    "caixa_sessoes": [
+      "id",
+      "unidade_id",
+      "opened_by_id",
+      "closed_by_id",
+      "data_operacao",
+      "status",
+      "saldo_inicial",
+      "saldo_final",
+      "valor_transferido",
+      "saldo_restante",
+      "observacoes",
+      "aberto_em",
+      "fechado_em",
+      "created_at",
+      "updated_at",
+      "resumo_fechamento",
+      "operador_id"
+    ],
+    "cartao_movimentos": [
+      "id",
+      "cartao_id",
+      "descricao",
+      "valor",
+      "parcelas",
+      "parcela_atual",
+      "data_compra",
+      "data_vencimento",
+      "beneficiario",
+      "categoria",
+      "operador_id",
+      "created_at"
+    ],
+    "cartoes_empresariais": [
+      "id",
+      "unidade_id",
+      "nome",
+      "bandeira",
+      "ultimos_digitos",
+      "limite_total",
+      "dia_vencimento",
+      "ativo",
+      "created_at",
+      "updated_at"
+    ],
+    "cartoes_paciente": [
+      "id",
+      "paciente_id",
+      "bandeira",
+      "final",
+      "titular",
+      "token_gateway",
+      "created_at",
+      "updated_at"
+    ],
+    "chatbot_mensagens": [
+      "id",
+      "telefone",
+      "direcao",
+      "conteudo",
+      "created_at"
+    ],
+    "chatbot_sessoes": [
+      "id",
+      "telefone",
+      "paciente_id",
+      "estado",
+      "contexto",
+      "ultima_interacao",
+      "created_at"
+    ],
+    "clinica_config": [
+      "id",
+      "unidade_id",
+      "nome",
+      "cidade_uf",
+      "endereco",
+      "cep",
+      "telefone",
+      "logo_url",
+      "cor_primaria",
+      "cor_secundaria",
+      "created_at",
+      "updated_at"
+    ],
+    "conciliacao_ofx": [
+      "id",
+      "conta_id",
+      "data_transacao",
+      "valor",
+      "descricao",
+      "lancamento_id",
+      "conciliado",
+      "created_at",
+      "tipo",
+      "fitid"
+    ],
+    "configuracoes": [
+      "id",
+      "categoria",
+      "chave",
+      "valor",
+      "created_at",
+      "updated_at"
+    ],
+    "contas_bancarias": [
+      "id",
+      "unidade_id",
+      "nome",
+      "banco",
+      "agencia",
+      "conta",
+      "tipo",
+      "saldo_inicial",
+      "ativo",
+      "created_at",
+      "updated_at"
+    ],
+    "crm_paciente_estagios": [
+      "paciente_id",
+      "estagio",
+      "observacoes",
+      "proxima_acao",
+      "data_proxima_acao",
+      "responsavel_id",
+      "created_at",
+      "updated_at",
+      "id"
+    ],
+    "documento_templates": [
+      "id",
+      "unidade_id",
+      "slug",
+      "nome",
+      "tipo",
+      "conteudo",
+      "ativo",
+      "editavel_pelo_especialista",
+      "disponivel_portal_paciente",
+      "created_at",
+      "updated_at"
+    ],
+    "documentos_clinicos": [
+      "id",
+      "paciente_id",
+      "profissional_id",
+      "tipo",
+      "meio",
+      "recebido",
+      "anexo_url",
+      "atualizado_em",
+      "created_at",
+      "updated_at"
+    ],
+    "documentos_gerados": [
+      "id",
+      "template_id",
+      "agendamento_id",
+      "paciente_id",
+      "profissional_id",
+      "conteudo_preenchido",
+      "gerado_por",
+      "gerado_em",
+      "disponivel_no_portal",
+      "pdf_url",
+      "assinatura_base64",
+      "assinado_em"
+    ],
+    "dre_demonstrativos": [
+      "id",
+      "unidade_id",
+      "gerado_por_id",
+      "periodo_tipo",
+      "referencia",
+      "visao",
+      "titulo",
+      "resumo",
+      "itens",
+      "filtros",
+      "gerado_em",
+      "created_at",
+      "updated_at"
+    ],
+    "evolucoes": [
+      "id",
+      "paciente_id",
+      "profissional_id",
+      "data_evolucao",
+      "tipo",
+      "resumo",
+      "retorno_recepcao",
+      "docs_count",
+      "created_at",
+      "updated_at"
+    ],
+    "financeiro_lancamentos": [
+      "id",
+      "unidade_id",
+      "descricao",
+      "categoria",
+      "valor",
+      "tipo",
+      "competencia",
+      "created_at",
+      "updated_at",
+      "usuario_id",
+      "data_lancamento",
+      "metodo",
+      "status",
+      "observacoes",
+      "vencimento",
+      "categoria_dre"
+    ],
+    "lista_espera": [
+      "id",
+      "paciente_id",
+      "unidade_id",
+      "prioridade",
+      "entrada_em",
+      "observacoes",
+      "created_at",
+      "updated_at",
+      "especialista",
+      "procedimento",
+      "preferencia_horario",
+      "procedimento_id",
+      "especialista_id"
+    ],
+    "movimentacoes_estoque": [
+      "id",
+      "produto_id",
+      "usuario_id",
+      "tipo",
+      "quantidade",
+      "observacoes",
+      "created_at",
+      "vinculo_tipo",
+      "vinculo_id",
+      "vinculo_nome",
+      "tipo_movimentacao",
+      "numero_nf",
+      "cnpj_emitente",
+      "estornada",
+      "estorno_motivo",
+      "estornada_em",
+      "estorno_por",
+      "movimentacao_origem_id",
+      "unidade_id"
+    ],
+    "notificacoes": [
+      "id",
+      "usuario_id",
+      "titulo",
+      "descricao",
+      "href",
+      "kind",
+      "lida",
+      "lida_em",
+      "ocorrido_em",
+      "source_key",
+      "source_table",
+      "source_id",
+      "created_at",
+      "updated_at"
+    ],
+    "paciente_exames": [
+      "id",
+      "paciente_id",
+      "nome",
+      "tipo",
+      "url",
+      "uploaded_by",
+      "uploaded_pelo_paciente",
+      "created_at"
+    ],
+    "pacientes": [
+      "id",
+      "usuario_id",
+      "unidade_id",
+      "nome",
+      "email",
+      "telefone",
+      "status",
+      "data_nascimento",
+      "cpf",
+      "observacoes",
+      "created_at",
+      "updated_at",
+      "sexo",
+      "rg",
+      "inscricao_estadual",
+      "origem",
+      "vinculo_tipo",
+      "photo_url",
+      "cep",
+      "logradouro",
+      "numero",
+      "complemento",
+      "bairro",
+      "cidade",
+      "estado",
+      "necessidades_especiais",
+      "responsavel",
+      "financeiro",
+      "fornecedor_dados"
+    ],
+    "pagamentos_online": [
+      "id",
+      "agendamento_id",
+      "lancamento_id",
+      "gateway",
+      "gateway_id",
+      "tipo",
+      "valor",
+      "status",
+      "qr_code",
+      "qr_code_copia_cola",
+      "link_pagamento",
+      "payload_gateway",
+      "webhook_payload",
+      "pago_em",
+      "created_at",
+      "updated_at"
+    ],
+    "pagamentos_paciente": [
+      "id",
+      "paciente_id",
+      "descricao",
+      "valor",
+      "status",
+      "vencimento_em",
+      "pago_em",
+      "created_at",
+      "updated_at"
+    ],
+    "perfil_permissoes": [
+      "id",
+      "perfil",
+      "recurso_id",
+      "acao",
+      "created_at",
+      "unidade_id"
+    ],
+    "prescricao_itens": [
+      "id",
+      "prescricao_id",
+      "produto_id",
+      "descricao",
+      "quantidade",
+      "valor_unitario",
+      "created_at",
+      "posologia"
+    ],
+    "prescricoes": [
+      "id",
+      "paciente_id",
+      "profissional_id",
+      "numero",
+      "status",
+      "tipo",
+      "valor_total",
+      "data_prescricao",
+      "validade",
+      "observacoes",
+      "created_at",
+      "updated_at",
+      "valor_bruto",
+      "desconto_tipo",
+      "desconto_percentual",
+      "desconto_valor",
+      "justificativa_desconto",
+      "vendedor_id",
+      "numero_parcelas",
+      "valor_parcela",
+      "assinatura_base64",
+      "assinado_em"
+    ],
+    "procedimentos": [
+      "id",
+      "nome",
+      "codigo",
+      "descricao",
+      "ativo",
+      "created_at",
+      "updated_at",
+      "valor"
+    ],
+    "produtos_estoque": [
+      "id",
+      "unidade_id",
+      "nome",
+      "categoria",
+      "sku",
+      "quantidade",
+      "estoque_minimo",
+      "status",
+      "created_at",
+      "updated_at",
+      "lote",
+      "validade",
+      "preco_custo",
+      "preco_venda"
+    ],
+    "prontuarios": [
+      "id",
+      "paciente_id",
+      "profissional_id",
+      "data_registro",
+      "tipo",
+      "status",
+      "conteudo",
+      "created_at",
+      "updated_at"
+    ],
+    "recursos": [
+      "id",
+      "codigo",
+      "descricao",
+      "created_at"
+    ],
+    "regras_repasse": [
+      "id",
+      "profissional_id",
+      "unidade_id",
+      "percentual",
+      "valor_fixo",
+      "ativo",
+      "observacoes",
+      "created_at",
+      "updated_at"
+    ],
+    "relatorios": [
+      "id",
+      "nome",
+      "descricao",
+      "slug",
+      "parametros",
+      "atualizado_em",
+      "created_at",
+      "updated_at"
+    ],
+    "repasses": [
+      "id",
+      "profissional_id",
+      "unidade_id",
+      "periodo_inicio",
+      "periodo_fim",
+      "valor",
+      "status",
+      "pago_em",
+      "created_at",
+      "updated_at"
+    ],
+    "tarefas": [
+      "id",
+      "titulo",
+      "descricao",
+      "responsavel_id",
+      "status",
+      "vencimento_em",
+      "created_by_id",
+      "created_at",
+      "updated_at"
+    ],
+    "unidades": [
+      "id",
+      "nome",
+      "cnpj",
+      "endereco",
+      "cidade",
+      "gestor_nome",
+      "status",
+      "created_at",
+      "updated_at"
+    ],
+    "usuario_permissoes": [
+      "id",
+      "usuario_id",
+      "recurso_id",
+      "acao",
+      "efeito",
+      "created_at"
+    ],
+    "usuario_preferencias": [
+      "id",
+      "usuario_id",
+      "chave",
+      "valor",
+      "created_at",
+      "updated_at"
+    ],
+    "usuarios": [
+      "id",
+      "unidade_id",
+      "nome",
+      "email",
+      "senha_hash",
+      "perfil",
+      "status",
+      "avatar_url",
+      "telefone",
+      "ultimo_login_em",
+      "created_at",
+      "updated_at",
+      "conselho",
+      "tipo_vinculo",
+      "especialistas_permitidos",
+      "cpf",
+      "crm"
+    ],
+    "v_agendamento_pagamento_resumo": [
+      "agendamento_id",
+      "total_pago",
+      "valor_devido",
+      "situacao",
+      "data_ultimo_pagamento"
+    ],
+    "vw_auth_login": [
+      "id",
+      "nome",
+      "email",
+      "senha_hash",
+      "perfil",
+      "status",
+      "avatar_url"
+    ],
+    "whatsapp_campanhas": [
+      "id",
+      "nome",
+      "tipo",
+      "mensagem_template",
+      "data_disparo",
+      "hora_disparo",
+      "status",
+      "total_enviados",
+      "total_erros",
+      "filtro_estagio",
+      "created_at",
+      "updated_at"
+    ],
+    "whatsapp_disparos": [
+      "id",
+      "tipo",
+      "agendamento_id",
+      "paciente_id",
+      "telefone",
+      "mensagem",
+      "status",
+      "erro_detalhe",
+      "agendado_para",
+      "enviado_em",
+      "created_at"
+    ]
+  },
+  "enums": {
+    "agendamento_status": [
+      "Agendado",
+      "Confirmado",
+      "Em Atendimento",
+      "Concluído",
+      "Cancelado",
+      "Faltou",
+      "Bloqueado",
+      "Adiado",
+      "Check-in",
+      "Check-out",
+      "Em Atraso",
+      "Disponível"
+    ],
+    "documento_meio": [
+      "digital",
+      "fisico",
+      "assinatura"
+    ],
+    "dre_categoria": [
+      "receita_consultas",
+      "receita_produtos",
+      "receita_outros",
+      "despesa_fixa",
+      "despesa_administrativa",
+      "despesa_comercial",
+      "despesa_pessoal",
+      "despesa_depreciacao",
+      "cancelamento",
+      "outros"
+    ],
+    "dre_periodo_tipo": [
+      "mensal",
+      "trimestral",
+      "anual"
+    ],
+    "fila_prioridade": [
+      "Baixa",
+      "Média",
+      "Alta",
+      "Urgente"
+    ],
+    "financeiro_tipo": [
+      "receita",
+      "despesa"
+    ],
+    "modalidade_atendimento": [
+      "Presencial",
+      "Online",
+      "Hibrido"
+    ],
+    "movimento_caixa_tipo": [
+      "entrada",
+      "saida"
+    ],
+    "notificacao_kind": [
+      "agenda",
+      "financeiro",
+      "lista_espera",
+      "pagamento",
+      "prescricao"
+    ],
+    "paciente_status": [
+      "Ativo",
+      "Inativo",
+      "Aguardando",
+      "Alta",
+      "Óbito"
+    ],
+    "pagamento_status": [
+      "Pendente",
+      "Pago",
+      "Vencido",
+      "Cancelado"
+    ],
+    "permission_effect": [
+      "allow",
+      "deny"
+    ],
+    "prontuario_status": [
+      "Aberto",
+      "Fechado",
+      "Em revisão",
+      "Arquivado"
+    ],
+    "repasse_status": [
+      "Pendente",
+      "Processando",
+      "Pago",
+      "Cancelado"
+    ],
+    "tarefa_status": [
+      "Pendente",
+      "Em andamento",
+      "Concluída",
+      "Cancelada"
+    ],
+    "unidade_status": [
+      "Ativa",
+      "Inativa",
+      "Em Manutenção"
+    ],
+    "user_role": [
+      "master",
+      "admin",
+      "gestor",
+      "recepcao",
+      "especialista",
+      "paciente"
+    ],
+    "user_status": [
+      "Ativo",
+      "Inativo",
+      "Bloqueado"
+    ]
+  },
+  "enumColumns": {
+    "agendamentos": {
+      "status": "agendamento_status",
+      "modalidade_atendimento": "modalidade_atendimento"
+    },
+    "agendamentos_pagamentos": {
+      "status": "pagamento_status"
+    },
+    "caixa_movimentos": {
+      "tipo": "movimento_caixa_tipo"
+    },
+    "documentos_clinicos": {
+      "meio": "documento_meio"
+    },
+    "dre_demonstrativos": {
+      "periodo_tipo": "dre_periodo_tipo"
+    },
+    "financeiro_lancamentos": {
+      "tipo": "financeiro_tipo",
+      "categoria_dre": "dre_categoria"
+    },
+    "lista_espera": {
+      "prioridade": "fila_prioridade"
+    },
+    "movimentacoes_estoque": {
+      "tipo": "movimento_caixa_tipo"
+    },
+    "notificacoes": {
+      "kind": "notificacao_kind"
+    },
+    "pacientes": {
+      "status": "paciente_status"
+    },
+    "pagamentos_paciente": {
+      "status": "pagamento_status"
+    },
+    "perfil_permissoes": {
+      "perfil": "user_role"
+    },
+    "prontuarios": {
+      "status": "prontuario_status"
+    },
+    "repasses": {
+      "status": "repasse_status"
+    },
+    "tarefas": {
+      "status": "tarefa_status"
+    },
+    "unidades": {
+      "status": "unidade_status"
+    },
+    "usuario_permissoes": {
+      "efeito": "permission_effect"
+    },
+    "usuarios": {
+      "perfil": "user_role",
+      "status": "user_status"
+    },
+    "vw_auth_login": {
+      "perfil": "user_role",
+      "status": "user_status"
+    }
+  },
+  "functions": {
+    "citextin": [
+      [
+        "cstring"
+      ]
+    ],
+    "citextout": [
+      [
+        "citext"
+      ]
+    ],
+    "citextrecv": [
+      [
+        "internal"
+      ]
+    ],
+    "citextsend": [
+      [
+        "citext"
+      ]
+    ],
+    "citext": [
+      [
+        "character"
+      ],
+      [
+        "boolean"
+      ],
+      [
+        "inet"
+      ]
+    ],
+    "citext_eq": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_ne": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_lt": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_le": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_gt": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_ge": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_cmp": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_hash": [
+      [
+        "citext"
+      ]
+    ],
+    "citext_smaller": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_larger": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "texticlike": [
+      [
+        "citext",
+        "citext"
+      ],
+      [
+        "citext",
+        "text"
+      ]
+    ],
+    "texticnlike": [
+      [
+        "citext",
+        "citext"
+      ],
+      [
+        "citext",
+        "text"
+      ]
+    ],
+    "texticregexeq": [
+      [
+        "citext",
+        "citext"
+      ],
+      [
+        "citext",
+        "text"
+      ]
+    ],
+    "texticregexne": [
+      [
+        "citext",
+        "citext"
+      ],
+      [
+        "citext",
+        "text"
+      ]
+    ],
+    "regexp_match": [
+      [
+        "citext",
+        "citext"
+      ],
+      [
+        "citext",
+        "citext",
+        "text"
+      ]
+    ],
+    "regexp_matches": [
+      [
+        "citext",
+        "citext"
+      ],
+      [
+        "citext",
+        "citext",
+        "text"
+      ]
+    ],
+    "regexp_replace": [
+      [
+        "citext",
+        "citext",
+        "text"
+      ],
+      [
+        "citext",
+        "citext",
+        "text",
+        "text"
+      ]
+    ],
+    "regexp_split_to_array": [
+      [
+        "citext",
+        "citext"
+      ],
+      [
+        "citext",
+        "citext",
+        "text"
+      ]
+    ],
+    "regexp_split_to_table": [
+      [
+        "citext",
+        "citext"
+      ],
+      [
+        "citext",
+        "citext",
+        "text"
+      ]
+    ],
+    "strpos": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "replace": [
+      [
+        "citext",
+        "citext",
+        "citext"
+      ]
+    ],
+    "split_part": [
+      [
+        "citext",
+        "citext",
+        "integer"
+      ]
+    ],
+    "translate": [
+      [
+        "citext",
+        "citext",
+        "text"
+      ]
+    ],
+    "citext_pattern_lt": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_pattern_le": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_pattern_gt": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_pattern_ge": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_pattern_cmp": [
+      [
+        "citext",
+        "citext"
+      ]
+    ],
+    "citext_hash_extended": [
+      [
+        "citext",
+        "bigint"
+      ]
+    ],
+    "set_updated_at": [
+      []
+    ],
+    "touch_ultimo_login": [
+      [
+        "p_usuario_id"
+      ]
+    ],
+    "get_user_permissions": [
+      [
+        "p_usuario_id"
+      ]
+    ],
+    "can_user": [
+      [
+        "p_usuario_id",
+        "p_resource",
+        "p_action"
+      ]
+    ],
+    "get_auth_me_payload": [
+      [
+        "p_usuario_id"
+      ]
+    ]
+  },
+  "fkMultiplicity": {
+    "caixa_movimentos": {
+      "usuarios": 2,
+      "unidades": 1,
+      "caixa_sessoes": 1
+    },
+    "dre_demonstrativos": {
+      "unidades": 1,
+      "usuarios": 1
+    },
+    "movimentacoes_estoque": {
+      "movimentacoes_estoque": 1,
+      "usuarios": 2,
+      "produtos_estoque": 1,
+      "unidades": 1
+    },
+    "prescricao_itens": {
+      "produtos_estoque": 1,
+      "prescricoes": 1
+    },
+    "produtos_estoque": {
+      "unidades": 1
+    },
+    "financeiro_lancamentos": {
+      "usuarios": 1,
+      "unidades": 1
+    },
+    "pacientes": {
+      "unidades": 1,
+      "usuarios": 1
+    },
+    "conciliacao_ofx": {
+      "contas_bancarias": 1,
+      "financeiro_lancamentos": 1
+    },
+    "agendamentos": {
+      "pacientes": 1,
+      "unidades": 1,
+      "usuarios": 2
+    },
+    "cartao_movimentos": {
+      "cartoes_empresariais": 1,
+      "usuarios": 1
+    },
+    "cartoes_empresariais": {
+      "unidades": 1
+    },
+    "documentos_clinicos": {
+      "usuarios": 1,
+      "pacientes": 1
+    },
+    "perfil_permissoes": {
+      "unidades": 1,
+      "recursos": 1
+    },
+    "audit_log": {
+      "unidades": 1,
+      "usuarios": 1
+    },
+    "regras_repasse": {
+      "unidades": 1,
+      "usuarios": 1
+    },
+    "caixa_sessoes": {
+      "unidades": 1,
+      "usuarios": 3
+    },
+    "usuarios": {
+      "unidades": 1
+    },
+    "anamneses": {
+      "pacientes": 1,
+      "usuarios": 1
+    },
+    "cartoes_paciente": {
+      "pacientes": 1
+    },
+    "whatsapp_disparos": {
+      "pacientes": 1,
+      "agendamentos": 1
+    },
+    "notificacoes": {
+      "usuarios": 1
+    },
+    "pagamentos_online": {
+      "agendamentos": 1,
+      "financeiro_lancamentos": 1
+    },
+    "documento_templates": {
+      "unidades": 1
+    },
+    "crm_paciente_estagios": {
+      "pacientes": 1,
+      "usuarios": 1
+    },
+    "agenda_bloqueios": {
+      "unidades": 1,
+      "usuarios": 2
+    },
+    "evolucoes": {
+      "pacientes": 1,
+      "usuarios": 1
+    },
+    "prontuarios": {
+      "pacientes": 1,
+      "usuarios": 1
+    },
+    "lista_espera": {
+      "unidades": 1,
+      "procedimentos": 1,
+      "pacientes": 1,
+      "usuarios": 1
+    },
+    "repasses": {
+      "usuarios": 1,
+      "unidades": 1
+    },
+    "prescricoes": {
+      "usuarios": 2,
+      "pacientes": 1
+    },
+    "contas_bancarias": {
+      "unidades": 1
+    },
+    "paciente_exames": {
+      "pacientes": 1,
+      "usuarios": 1
+    },
+    "tarefas": {
+      "usuarios": 2
+    },
+    "chatbot_sessoes": {
+      "pacientes": 1
+    },
+    "documentos_gerados": {
+      "agendamentos": 1,
+      "documento_templates": 1,
+      "pacientes": 1,
+      "usuarios": 2
+    },
+    "usuario_permissoes": {
+      "usuarios": 1,
+      "recursos": 1
+    },
+    "usuario_preferencias": {
+      "usuarios": 1
+    },
+    "clinica_config": {
+      "unidades": 1
+    },
+    "agendamentos_pagamentos": {
+      "agendamentos": 1
+    },
+    "pagamentos_paciente": {
+      "pacientes": 1
+    }
+  }
+}
