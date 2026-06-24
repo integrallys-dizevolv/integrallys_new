@@ -143,6 +143,19 @@ export function AgendaView() {
       .filter(Boolean)
       .sort()
   }, [agendaProfessionals, data, usuarios])
+  // Slots 'Disponível' (gerados na 2A) por profissional + data (ISO) para o modal
+  // de novo agendamento — item.data vem como DD/MM/AAAA (formatDate), reconverto.
+  const availableSlots = useMemo(
+    () =>
+      data
+        .filter((item) => item.status === 'Disponível')
+        .map((item) => {
+          const [dia, mes, ano] = (item.data ?? '').split('/')
+          const dataISO = dia && mes && ano ? `${ano}-${mes}-${dia}` : (item.data ?? '')
+          return { profissional: item.profissional, data: dataISO, horario: item.horario }
+        }),
+    [data],
+  )
   const filteredAgenda = useMemo(
     () =>
       data.filter(
@@ -290,6 +303,8 @@ export function AgendaView() {
     horario: string
     tipo: string
     observacoes: string
+    modalidade?: string
+    plataformaOnline?: string
     foraJanela?: boolean
     motivoEncaixe?: string
   }) => {
@@ -300,13 +315,20 @@ export function AgendaView() {
         data: payload.data,
         horario: payload.horario,
         status: 'Agendado',
+        tipo: payload.tipo,
         observacoes: payload.observacoes,
+        modalidade: payload.modalidade,
+        plataformaOnline: payload.plataformaOnline,
         foraJanela: payload.foraJanela,
         motivoEncaixe: payload.motivoEncaixe,
       })
       toast.success(
         payload.foraJanela ? 'Encaixe registrado com sucesso.' : 'Agendamento criado com sucesso.',
       )
+      // Navega o calendário para a data marcada — sem isso um agendamento em data
+      // futura salva mas fica invisível na visão do dia atual ("marquei e não salvou").
+      const [ano, mes, dia] = payload.data.split('-').map(Number)
+      if (ano && mes && dia) calendar.setCurrentDate(new Date(ano, mes - 1, dia))
       actions.setActiveModal(null)
       if (shouldOpenNewFromQuery) router.replace('/agenda')
     } catch (err) {
@@ -1114,6 +1136,7 @@ export function AgendaView() {
         currentDate={calendar.currentDate}
         professionals={professionalOptions}
         patients={patientOptions}
+        availableSlots={availableSlots}
         initialPatientId={preselectedPatientId}
         initialDate={novoAgendamentoPreset.data}
         initialTime={novoAgendamentoPreset.horario}

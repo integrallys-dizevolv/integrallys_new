@@ -1,10 +1,21 @@
-import { NextResponse, type NextRequest } from 'next/server'
 import type { PostgrestError } from '@supabase/supabase-js'
-import { getAppSupabase, getEntityNameMap, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
+import { type NextRequest, NextResponse } from 'next/server'
+import { agendarLembrete } from '@/app/api/whatsapp/disparar/route'
+import {
+  getAppSupabase,
+  getEntityNameMap,
+  serverErrorResponse,
+  supabaseErrorResponse,
+} from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { mapAgendaItem } from '@/lib/domain-mappers'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
-import { agendarLembrete } from '@/app/api/whatsapp/disparar/route'
+import {
+  buildInsertPayload,
+  buildOccupyUpdate,
+  decidirFluxoAgendamento,
+  ocuparSlotDisponivel,
+} from './agenda-slot'
 
 type ScopedAgendaContext =
   | {
@@ -74,7 +85,10 @@ async function getScopedAgendaContext(session: Awaited<ReturnType<typeof getRequ
   return {
     unidadeId: data?.unidade_id ? String(data.unidade_id) : null,
     profissionalId: null,
-    especialistasPermitidos: especialistasPermitidos && especialistasPermitidos.length > 0 ? especialistasPermitidos : null,
+    especialistasPermitidos:
+      especialistasPermitidos && especialistasPermitidos.length > 0
+        ? especialistasPermitidos
+        : null,
     error: null,
   } satisfies ScopedAgendaContext
 }
@@ -88,7 +102,9 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
 
   let query = supabase
     .from('agendamentos')
-    .select('id,paciente_id,profissional_id,horario_inicio,horario_fim,status,data_agendamento,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes,tipo_encaixe,fora_janela,motivo_encaixe')
+    .select(
+      'id,paciente_id,profissional_id,horario_inicio,horario_fim,status,data_agendamento,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes,tipo_encaixe,fora_janela,motivo_encaixe',
+    )
     .order('data_agendamento', { ascending: true })
     .order('horario_inicio', { ascending: true })
 
@@ -111,20 +127,49 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   const agendaIds = (data ?? []).map((row) => String(row.id ?? ''))
 
   const [pacientesResult, profissionaisResult, pagamentosResult] = await Promise.all([
-    getEntityNameMap(supabase, 'pacientes', (data ?? []).map((row) => String(row.paciente_id ?? ''))),
-    getEntityNameMap(supabase, 'usuarios', (data ?? []).map((row) => String(row.profissional_id ?? ''))),
+    getEntityNameMap(
+      supabase,
+      'pacientes',
+      (data ?? []).map((row) => String(row.paciente_id ?? '')),
+    ),
+    getEntityNameMap(
+      supabase,
+      'usuarios',
+      (data ?? []).map((row) => String(row.profissional_id ?? '')),
+    ),
     agendaIds.length > 0
-      ? supabase.from('v_agendamento_pagamento_resumo').select('agendamento_id,total_pago,valor_devido,situacao,data_ultimo_pagamento').in('agendamento_id', agendaIds)
-      : Promise.resolve({ data: [] as Array<{ agendamento_id: string; total_pago: number; valor_devido: number; situacao: string }>, error: null }),
+      ? supabase
+          .from('v_agendamento_pagamento_resumo')
+          .select('agendamento_id,total_pago,valor_devido,situacao,data_ultimo_pagamento')
+          .in('agendamento_id', agendaIds)
+      : Promise.resolve({
+          data: [] as Array<{
+            agendamento_id: string
+            total_pago: number
+            valor_devido: number
+            situacao: string
+          }>,
+          error: null,
+        }),
   ])
 
-  if (pacientesResult.error) return supabaseErrorResponse(pacientesResult.error, 'Falha ao carregar agenda')
-  if (profissionaisResult.error) return supabaseErrorResponse(profissionaisResult.error, 'Falha ao carregar agenda')
+  if (pacientesResult.error)
+    return supabaseErrorResponse(pacientesResult.error, 'Falha ao carregar agenda')
+  if (profissionaisResult.error)
+    return supabaseErrorResponse(profissionaisResult.error, 'Falha ao carregar agenda')
 
-  const pagamentoMap: Record<string, { situacao: string; total_pago: number; data_ultimo_pagamento?: string }> = {}
+  const pagamentoMap: Record<
+    string,
+    { situacao: string; total_pago: number; data_ultimo_pagamento?: string }
+  > = {}
   if (pagamentosResult.data && !pagamentosResult.error) {
     for (const row of pagamentosResult.data) {
-      const r = row as { agendamento_id: string; total_pago: number; situacao: string; data_ultimo_pagamento?: string }
+      const r = row as {
+        agendamento_id: string
+        total_pago: number
+        situacao: string
+        data_ultimo_pagamento?: string
+      }
       pagamentoMap[r.agendamento_id] = {
         situacao: r.situacao,
         total_pago: Number(r.total_pago ?? 0),
@@ -151,16 +196,21 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   }
 
   if (scopedContext.especialistasPermitidos?.length) {
-    professionalOptionsQuery = professionalOptionsQuery.in('id', scopedContext.especialistasPermitidos)
+    professionalOptionsQuery = professionalOptionsQuery.in(
+      'id',
+      scopedContext.especialistasPermitidos,
+    )
   }
 
-  const [{ data: patientOptionsData, error: patientOptionsError }, { data: professionalOptionsData, error: professionalOptionsError }] = await Promise.all([
-    patientOptionsQuery,
-    professionalOptionsQuery,
-  ])
+  const [
+    { data: patientOptionsData, error: patientOptionsError },
+    { data: professionalOptionsData, error: professionalOptionsError },
+  ] = await Promise.all([patientOptionsQuery, professionalOptionsQuery])
 
-  if (patientOptionsError) return supabaseErrorResponse(patientOptionsError, 'Falha ao carregar agenda')
-  if (professionalOptionsError) return supabaseErrorResponse(professionalOptionsError, 'Falha ao carregar agenda')
+  if (patientOptionsError)
+    return supabaseErrorResponse(patientOptionsError, 'Falha ao carregar agenda')
+  if (professionalOptionsError)
+    return supabaseErrorResponse(professionalOptionsError, 'Falha ao carregar agenda')
 
   return NextResponse.json({
     data: (data ?? []).map((row) => {
@@ -189,7 +239,10 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   })
 }
 
-async function resolveProfessionalId(supabase: ReturnType<typeof getAppSupabase>, profissional: unknown) {
+async function resolveProfessionalId(
+  supabase: ReturnType<typeof getAppSupabase>,
+  profissional: unknown,
+) {
   if (!profissional) return null
   const candidate = String(profissional)
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -199,8 +252,15 @@ async function resolveProfessionalId(supabase: ReturnType<typeof getAppSupabase>
   return data?.id ?? null
 }
 
-async function resolvePatientUnitId(supabase: ReturnType<typeof getAppSupabase>, pacienteId: string) {
-  const { data } = await supabase.from('pacientes').select('unidade_id').eq('id', pacienteId).maybeSingle()
+async function resolvePatientUnitId(
+  supabase: ReturnType<typeof getAppSupabase>,
+  pacienteId: string,
+) {
+  const { data } = await supabase
+    .from('pacientes')
+    .select('unidade_id')
+    .eq('id', pacienteId)
+    .maybeSingle()
   return data?.unidade_id ?? null
 }
 
@@ -233,11 +293,16 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse('Agendamento inválido', 'INVALID_APPOINTMENT', 400)
   }
   if (isCompromissoPessoal && !body.titulo) {
-    return serverErrorResponse('Título é obrigatório para compromisso pessoal', 'INVALID_APPOINTMENT', 400)
+    return serverErrorResponse(
+      'Título é obrigatório para compromisso pessoal',
+      'INVALID_APPOINTMENT',
+      400,
+    )
   }
 
   const supabase = getAppSupabase()
-  const profissionalId = await resolveProfessionalId(supabase, body.profissional) ?? session.userId
+  const profissionalId =
+    (await resolveProfessionalId(supabase, body.profissional)) ?? session.userId
   const pacienteId = body.pacienteId ? String(body.pacienteId) : null
   const scopedContext = await getScopedAgendaContext(session)
   if (scopedContext.error) {
@@ -253,30 +318,50 @@ export async function POST(request: NextRequest) {
       ? body.motivoEncaixe.trim()
       : null
 
+  // CONSULTA (com paciente) sem encaixe: ocupa um slot 'Disponível' gerado (2A),
+  // em vez de inserir uma linha nova — fecha a "agenda aberta".
+  // O `pacienteId &&` à esquerda é só p/ narrowing de tipo (string|null → string
+  // para buildOccupyUpdate); decidirFluxoAgendamento já exige pacienteId.
+  if (pacienteId && decidirFluxoAgendamento({ pacienteId, foraJanela }) === 'ocupar') {
+    const result = await ocuparSlotDisponivel(supabase, {
+      profissionalId,
+      data: String(body.data),
+      horario: String(body.horario),
+      update: buildOccupyUpdate(body, pacienteId),
+    })
+
+    if (result.kind === 'error') {
+      return supabaseErrorResponse(result.error, 'Falha ao agendar consulta')
+    }
+    if (result.kind === 'indisponivel') {
+      return serverErrorResponse(
+        'Esse horário não está disponível para o profissional. Atualize a agenda e escolha um horário livre, ou use o encaixe fora do horário padrão.',
+        'SLOT_INDISPONIVEL',
+        409,
+      )
+    }
+
+    void agendarLembrete(result.id).catch((err) =>
+      console.error('[whatsapp] agendar_lembrete', err),
+    )
+
+    return listAgenda(session)
+  }
+
+  // Encaixe (fora da grade) ou compromisso pessoal/reunião (sem paciente): insere.
   const { data: inserted, error } = await supabase
     .from('agendamentos')
-    .insert({
-      unidade_id: unidadeId,
-      paciente_id: pacienteId,
-      profissional_id: profissionalId,
-      criado_por_id: session.userId,
-      data_agendamento: body.data,
-      horario_inicio: body.horario,
-      horario_fim: body.horarioFim ?? null,
-      status: body.status ?? 'Agendado',
-      tipo: body.tipo ?? null,
-      titulo: body.titulo ?? null,
-      local: body.local ?? null,
-      participantes: body.participantes ?? null,
-      modalidade_atendimento: body.modalidade ?? (isCompromissoPessoal ? null : 'Presencial'),
-      plataforma_online: body.plataformaOnline ?? null,
-      url_online: body.urlOnline ?? null,
-      valor_procedimento: body.valorProcedimento ?? null,
-      observacoes: body.observacoes ?? null,
-      tipo_encaixe: foraJanela ? 'manual' : 'normal',
-      fora_janela: foraJanela,
-      motivo_encaixe: motivoEncaixe,
-    })
+    .insert(
+      buildInsertPayload({
+        unidadeId,
+        pacienteId,
+        profissionalId,
+        criadoPorId: session.userId,
+        body,
+        foraJanela,
+        motivoEncaixe,
+      }),
+    )
     .select('id')
     .maybeSingle()
 

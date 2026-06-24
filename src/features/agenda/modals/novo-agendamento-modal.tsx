@@ -11,10 +11,26 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { resolveModalidade, type TipoAtendimento } from './novo-agendamento.utils'
 
 interface PacienteOption {
   id: string
   nome: string
+}
+
+export interface SlotDisponivel {
+  profissional: string
+  data: string // YYYY-MM-DD
+  horario: string // HH:MM
+}
+
+// YYYY-MM-DD no fuso LOCAL — toISOString() é UTC e desalinha do fuso dos slots
+// (perto da meia-noite cairia no dia seguinte → "0 horários disponíveis").
+function toLocalISODate(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 interface NovoAgendamentoModalProps {
@@ -23,6 +39,8 @@ interface NovoAgendamentoModalProps {
   currentDate?: Date
   professionals?: string[]
   patients?: PacienteOption[]
+  /** Slots 'Disponível' (gerados na 2A) para oferecer fora do encaixe. */
+  availableSlots?: SlotDisponivel[]
   initialPatientId?: string
   initialDate?: string
   initialTime?: string
@@ -34,6 +52,8 @@ interface NovoAgendamentoModalProps {
     horario: string
     tipo: string
     observacoes: string
+    modalidade?: string
+    plataformaOnline?: string
     foraJanela?: boolean
     motivoEncaixe?: string
   }) => Promise<void> | void
@@ -45,6 +65,7 @@ export function NovoAgendamentoModal({
   currentDate,
   professionals = [],
   patients = [],
+  availableSlots = [],
   initialPatientId,
   initialDate,
   initialTime,
@@ -54,11 +75,11 @@ export function NovoAgendamentoModal({
   const formRef = useRef<HTMLFormElement | null>(null)
   const [pacienteId, setPacienteId] = useState('')
   const [profissional, setProfissional] = useState('')
-  const [data, setData] = useState(currentDate ? currentDate.toISOString().split('T')[0] : '')
+  const [data, setData] = useState(currentDate ? toLocalISODate(currentDate) : '')
   const [horario, setHorario] = useState('')
   const [tipo, setTipo] = useState('consulta')
   const [observacoes, setObservacoes] = useState('')
-  const [tipoAtendimento, setTipoAtendimento] = useState<'presencial' | 'online' | 'hibrido'>('presencial')
+  const [tipoAtendimento, setTipoAtendimento] = useState<TipoAtendimento>('presencial')
   const [plataformaOnline, setPlataformaOnline] = useState<'zoom' | 'google_meet' | 'teams'>('google_meet')
   const [encaixeExtraHorario, setEncaixeExtraHorario] = useState(false)
   const [motivoEncaixe, setMotivoEncaixe] = useState('')
@@ -67,6 +88,24 @@ export function NovoAgendamentoModal({
     () => patients.find((item) => item.id === pacienteId)?.nome ?? '',
     [patients, pacienteId],
   )
+
+  // Horários 'Disponível' do profissional selecionado naquela data (ordenados, únicos).
+  const slotsForSelection = useMemo(() => {
+    if (!profissional || !data) return [] as string[]
+    const horarios = availableSlots
+      .filter((slot) => slot.profissional === profissional && slot.data === data)
+      .map((slot) => slot.horario)
+    return Array.from(new Set(horarios)).sort()
+  }, [availableSlots, profissional, data])
+
+  // Fora do encaixe, o horário precisa ser um slot disponível — limpa seleções
+  // inválidas quando o profissional/data muda.
+  useEffect(() => {
+    if (encaixeExtraHorario) return
+    if (horario && !slotsForSelection.includes(horario)) {
+      setHorario('')
+    }
+  }, [encaixeExtraHorario, horario, slotsForSelection])
 
   useEffect(() => {
     if (!isOpen) return
@@ -89,6 +128,7 @@ export function NovoAgendamentoModal({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!pacienteId || !data || !horario) return
+    const { modalidade, plataformaOnline: plataforma } = resolveModalidade(tipoAtendimento, plataformaOnline)
     await onSave?.({
       pacienteId,
       profissional,
@@ -96,6 +136,8 @@ export function NovoAgendamentoModal({
       horario,
       tipo,
       observacoes,
+      modalidade,
+      plataformaOnline: plataforma,
       foraJanela: encaixeExtraHorario,
       motivoEncaixe: encaixeExtraHorario ? motivoEncaixe : undefined,
     })
@@ -160,14 +202,43 @@ export function NovoAgendamentoModal({
                 <Clock className="h-4 w-4 text-[var(--app-primary)]" />
                 Horário
               </Label>
-              <Input
-                type="time"
-                value={horario}
-                onChange={(event) => setHorario(event.target.value)}
-                className="h-11 rounded-integrallys bg-app-bg-secondary/50 dark:bg-app-bg-dark"
-              />
+              {encaixeExtraHorario ? (
+                <Input
+                  type="time"
+                  value={horario}
+                  onChange={(event) => setHorario(event.target.value)}
+                  className="h-11 rounded-integrallys bg-app-bg-secondary/50 dark:bg-app-bg-dark"
+                />
+              ) : (
+                <Select value={horario} onValueChange={setHorario} disabled={slotsForSelection.length === 0}>
+                  <SelectTrigger className="h-11 rounded-integrallys border-app-border bg-white dark:border-app-border-dark dark:bg-app-bg-dark">
+                    <SelectValue
+                      placeholder={
+                        !profissional || !data
+                          ? 'Selecione profissional e data'
+                          : slotsForSelection.length === 0
+                            ? 'Nenhum horário disponível'
+                            : 'Selecione o horário'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-integrallys">
+                    {slotsForSelection.map((slot) => (
+                      <SelectItem key={slot} value={slot}>
+                        {slot}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
+          {!encaixeExtraHorario && profissional && data && slotsForSelection.length === 0 && (
+            <p className="text-xs text-app-text-muted">
+              Nenhum horário disponível para este profissional nesta data. Gere a agenda ou ligue o
+              encaixe abaixo para marcar fora da grade.
+            </p>
+          )}
 
           <div className="space-y-1.5">
             <Label className="flex items-center gap-2 text-sm font-normal text-app-text-primary dark:text-white">
@@ -188,7 +259,7 @@ export function NovoAgendamentoModal({
 
           <div className="space-y-1.5">
             <Label className="text-sm font-normal text-app-text-primary dark:text-white">Tipo de atendimento</Label>
-            <Select value={tipoAtendimento} onValueChange={(value) => setTipoAtendimento(value as 'presencial' | 'online' | 'hibrido')}>
+            <Select value={tipoAtendimento} onValueChange={(value) => setTipoAtendimento(value as TipoAtendimento)}>
               <SelectTrigger className="h-11 rounded-integrallys border-app-border bg-white dark:border-app-border-dark dark:bg-app-bg-dark">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
