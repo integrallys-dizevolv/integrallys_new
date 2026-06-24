@@ -191,6 +191,44 @@ export function mapUsuarioItem(row: Record<string, unknown>) {
   }
 }
 
+export function mapProfissionalHorario(row: Record<string, unknown>) {
+  const horaInicio = String(row.hora_inicio ?? '')
+  const horaFim = String(row.hora_fim ?? '')
+  return {
+    id: row.id ? String(row.id) : undefined,
+    diaSemana: Number(row.dia_semana ?? 0),
+    turno: row.turno === 'tarde' ? ('tarde' as const) : ('manha' as const),
+    // Postgres time vem como "HH:MM:SS"; o form usa "HH:MM".
+    horaInicio: horaInicio.slice(0, 5),
+    horaFim: horaFim.slice(0, 5),
+    duracaoMin: Number(row.duracao_min ?? 0),
+    ativo: row.ativo !== false,
+  }
+}
+
+export function mapProfissionalItem(
+  row: Record<string, unknown>,
+  horarioRows: Array<Record<string, unknown>> = [],
+  procedimentoIds: string[] = [],
+) {
+  return {
+    id: String(row.id ?? ''),
+    nome: String(row.nome ?? ''),
+    email: String(row.email ?? ''),
+    telefone: row.telefone ? String(row.telefone) : null,
+    conselho: row.conselho ? String(row.conselho) : null,
+    crm: row.crm ? String(row.crm) : null,
+    tipoVinculo:
+      row.tipo_vinculo === 'parceiro' || row.tipo_vinculo === 'interno'
+        ? (row.tipo_vinculo as 'parceiro' | 'interno')
+        : 'interno',
+    status: String(row.status ?? ''),
+    unidadeId: row.unidade_id ? String(row.unidade_id) : null,
+    horarios: horarioRows.map((horario) => mapProfissionalHorario(horario)),
+    procedimentoIds,
+  }
+}
+
 export function mapPermissaoItem(row: Record<string, unknown>) {
   return {
     id: `${row.perfil ?? 'perfil'}-${row.unidadeId ?? 'global'}-${row.recurso ?? 'recurso'}`,

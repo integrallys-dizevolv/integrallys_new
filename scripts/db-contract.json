@@ -503,6 +503,24 @@
       "preco_custo",
       "preco_venda"
     ],
+    "profissional_horarios": [
+      "id",
+      "profissional_id",
+      "unidade_id",
+      "dia_semana",
+      "turno",
+      "hora_inicio",
+      "hora_fim",
+      "duracao_min",
+      "ativo",
+      "created_at",
+      "updated_at"
+    ],
+    "profissional_procedimentos": [
+      "profissional_id",
+      "procedimento_id",
+      "created_at"
+    ],
     "prontuarios": [
       "id",
       "paciente_id",
