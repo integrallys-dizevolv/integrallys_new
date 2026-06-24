@@ -40,6 +40,7 @@ import { PrescricaoComplementarModal } from '@/features/gestao-pacientes/modals'
 import type { PrescricaoAtiva } from '@/services/especialistaPrescricoes.service'
 import type { Patient } from '@/types/patient'
 import { usePacientes, type PacienteItem } from '@/hooks/use-pacientes'
+import { isClientePaciente } from './pacientes.utils'
 
 function calculateAgeFromDate(dateStr: string): string {
   const birth = new Date(dateStr)
@@ -163,6 +164,10 @@ export function PacientesView() {
 
   const filteredPatients = useMemo(() => {
     return patients.filter((p) => {
+      // Fornecedor/prestador são linhas de `pacientes` com vínculo próprio e têm
+      // tela dedicada — não devem vazar na lista de Pacientes (null-safe).
+      const isCliente = isClientePaciente(p.vinculoTipo)
+
       const matchesSearch = (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.cpf || '').includes(searchTerm) ||
         (p.email || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -174,7 +179,7 @@ export function PacientesView() {
         (statusFilter === 'obito' && activeStatus.includes('obito'))
 
       const matchesUnit = unitFilter === 'todos' || p.unidadeId === unitFilter
-      return matchesSearch && matchesStatus && matchesUnit
+      return isCliente && matchesSearch && matchesStatus && matchesUnit
     })
   }, [patients, searchTerm, statusFilter, unitFilter])
 
