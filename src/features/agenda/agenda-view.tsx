@@ -410,22 +410,19 @@ export function AgendaView() {
     especialistaId: string
     dataInicio: string
     dataFim: string
-    horarioInicio: string
-    horarioFim: string
-    intervalos: number
     diasSemana: number[]
-    considerarFeriados?: boolean
+    considerarFeriados: boolean
   }) => {
-    const result = await api.post<{ gerados: number; pulados: number }>(
+    const result = await api.post<{ gerados: number; pulados: number; alertas?: string[] }>(
       '/api/agenda/gerar',
       payload,
     )
-    toast.success(
-      `Agenda gerada: ${result.gerados} slot(s) criado(s)${
-        result.pulados > 0 ? `, ${result.pulados} já existiam ou eram feriados` : ''
-      }.`,
-    )
     await reloadAgenda()
+    return {
+      gerados: result.gerados,
+      pulados: result.pulados,
+      alertas: result.alertas ?? [],
+    }
   }
 
   const totalItems =
