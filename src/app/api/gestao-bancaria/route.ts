@@ -1,7 +1,8 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
+import { type ContaTipo, normalizeContaTipo, validateContaInput } from './conta-input'
 
 interface ContaBancaria {
   id: string
@@ -10,7 +11,7 @@ interface ContaBancaria {
   banco: string | null
   agencia: string | null
   conta: string | null
-  tipo: 'corrente' | 'poupanca' | 'investimento'
+  tipo: ContaTipo
   saldoInicial: number
   ativo: boolean
   createdAt: string
@@ -30,7 +31,7 @@ type Row = {
 }
 
 function mapRow(row: Row): ContaBancaria {
-  const tipo = row.tipo === 'poupanca' || row.tipo === 'investimento' ? row.tipo : 'corrente'
+  const tipo = normalizeContaTipo(row.tipo)
   return {
     id: String(row.id),
     unidadeId: row.unidade_id ? String(row.unidade_id) : null,
@@ -120,14 +121,9 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return serverErrorResponse('Payload inválido', 'INVALID_PAYLOAD', 400)
 
-  const nome = String(body.nome ?? '').trim()
-  if (!nome) return serverErrorResponse('Nome da conta é obrigatório', 'NOME_REQUIRED', 400)
-
-  const tipoRaw = String(body.tipo ?? 'corrente')
-  const tipo =
-    tipoRaw === 'poupanca' || tipoRaw === 'investimento' ? tipoRaw : 'corrente'
-
-  const saldoInicial = Number(body.saldoInicial ?? 0)
+  const validated = validateContaInput(body)
+  if (!validated.ok) return serverErrorResponse(validated.error, validated.code, 400)
+  const conta = validated.value
 
   const supabase = getAppSupabase()
 
@@ -138,13 +134,13 @@ export async function POST(request: NextRequest) {
     .from('contas_bancarias')
     .insert({
       unidade_id: unidadeId,
-      nome,
-      banco: body.banco ? String(body.banco) : null,
-      agencia: body.agencia ? String(body.agencia) : null,
-      conta: body.conta ? String(body.conta) : null,
-      tipo,
-      saldo_inicial: Number.isFinite(saldoInicial) ? saldoInicial : 0,
-      ativo: body.ativo === false ? false : true,
+      nome: conta.nome,
+      banco: conta.banco,
+      agencia: conta.agencia,
+      conta: conta.conta,
+      tipo: conta.tipo,
+      saldo_inicial: conta.saldoInicial,
+      ativo: conta.ativo,
     })
     .select('id,unidade_id,nome,banco,agencia,conta,tipo,saldo_inicial,ativo,created_at')
     .single()

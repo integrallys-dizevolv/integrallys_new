@@ -37,7 +37,7 @@ interface ContaOption {
   nome: string
   banco?: string | null
   conta?: string | null
-  tipo?: 'corrente' | 'poupanca' | 'investimento' | null
+  tipo?: 'corrente' | 'poupanca' | 'investimento' | 'dinheiro' | null
 }
 
 interface Props {

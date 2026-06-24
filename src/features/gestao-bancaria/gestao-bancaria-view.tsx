@@ -31,14 +31,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useContasBancarias, type ContaBancariaInput } from './hooks/use-contas-bancarias'
+import { useContasBancarias, type ContaBancariaInput, type ContaTipo } from './hooks/use-contas-bancarias'
 import { ImportarOfxModal } from './modals/importar-ofx-modal'
 import { ContaExtrato } from './components/conta-extrato'
 
-const TIPO_LABEL: Record<'corrente' | 'poupanca' | 'investimento', string> = {
+const TIPO_LABEL: Record<ContaTipo, string> = {
   corrente: 'Corrente',
   poupanca: 'Poupança',
   investimento: 'Investimento',
+  dinheiro: 'Dinheiro',
 }
 
 export function GestaoBancariaView() {
@@ -271,9 +272,10 @@ export function GestaoBancariaView() {
       <Dialog open={isCreating} onOpenChange={setIsCreating}>
         <DialogContent className="rounded-[24px]">
           <DialogHeader>
-            <DialogTitle>Nova conta bancária</DialogTitle>
+            <DialogTitle>Nova conta ou caixa</DialogTitle>
             <DialogDescription>
-              Preencha os dados da conta. O saldo inicial é o ponto de partida do saldo atual.
+              Conta bancária (com banco/agência/conta) ou caixa em dinheiro (cofre, recepção — só
+              nome e saldo). O saldo inicial é o ponto de partida do saldo atual.
             </DialogDescription>
           </DialogHeader>
 
@@ -286,50 +288,58 @@ export function GestaoBancariaView() {
                 onChange={(e) => setForm((prev) => ({ ...prev, nome: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Banco</Label>
-                <Input
-                  placeholder="Ex.: Itaú"
-                  value={form.banco ?? ''}
-                  onChange={(e) => setForm((prev) => ({ ...prev, banco: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Tipo</Label>
-                <Select
-                  value={form.tipo}
-                  onValueChange={(value: 'corrente' | 'poupanca' | 'investimento') =>
-                    setForm((prev) => ({ ...prev, tipo: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="corrente">Corrente</SelectItem>
-                    <SelectItem value="poupanca">Poupança</SelectItem>
-                    <SelectItem value="investimento">Investimento</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-1.5">
+              <Label>Tipo</Label>
+              <Select
+                value={form.tipo}
+                onValueChange={(value: ContaTipo) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    tipo: value,
+                    // caixa em dinheiro (cofre/recepção) não tem dados bancários
+                    ...(value === 'dinheiro' ? { banco: '', agencia: '', conta: '' } : {}),
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="corrente">Corrente</SelectItem>
+                  <SelectItem value="poupanca">Poupança</SelectItem>
+                  <SelectItem value="investimento">Investimento</SelectItem>
+                  <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Agência</Label>
-                <Input
-                  value={form.agencia ?? ''}
-                  onChange={(e) => setForm((prev) => ({ ...prev, agencia: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Conta</Label>
-                <Input
-                  value={form.conta ?? ''}
-                  onChange={(e) => setForm((prev) => ({ ...prev, conta: e.target.value }))}
-                />
-              </div>
-            </div>
+            {form.tipo !== 'dinheiro' && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Banco</Label>
+                  <Input
+                    placeholder="Ex.: Itaú"
+                    value={form.banco ?? ''}
+                    onChange={(e) => setForm((prev) => ({ ...prev, banco: e.target.value }))}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Agência</Label>
+                    <Input
+                      value={form.agencia ?? ''}
+                      onChange={(e) => setForm((prev) => ({ ...prev, agencia: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Conta</Label>
+                    <Input
+                      value={form.conta ?? ''}
+                      onChange={(e) => setForm((prev) => ({ ...prev, conta: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
             <div className="space-y-1.5">
               <Label>Saldo inicial (R$)</Label>
               <Input

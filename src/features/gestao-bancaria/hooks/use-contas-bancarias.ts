@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useApi } from '@/hooks/use-api'
 
+export type ContaTipo = 'corrente' | 'poupanca' | 'investimento' | 'dinheiro'
+
 export interface ContaBancaria {
   id: string
   unidadeId: string | null
@@ -10,7 +12,7 @@ export interface ContaBancaria {
   banco: string | null
   agencia: string | null
   conta: string | null
-  tipo: 'corrente' | 'poupanca' | 'investimento'
+  tipo: ContaTipo
   saldoInicial: number
   saldoAtual: number
   saldoConciliado: number
@@ -25,7 +27,7 @@ export interface ContaBancariaInput {
   banco?: string
   agencia?: string
   conta?: string
-  tipo: 'corrente' | 'poupanca' | 'investimento'
+  tipo: ContaTipo
   saldoInicial: number
 }
 
