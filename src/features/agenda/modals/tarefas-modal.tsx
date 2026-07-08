@@ -1,0 +1,408 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import {
+  BarChart3,
+  Calendar,
+  CheckCircle2,
+  Circle,
+  Clock,
+  Edit2,
+  FileText,
+  Layers3,
+  Plus,
+  Sparkles,
+  Tag,
+  Trash2,
+  Type,
+  X,
+} from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import { DateInput } from '@/components/shared/date-input'
+
+interface Tarefa {
+  id: string
+  titulo: string
+  descricao: string
+  data: string
+  horario: string
+  prioridade: 'Alta' | 'Média' | 'Baixa'
+  status: 'Pendente' | 'Concluída'
+  categoria: string
+}
+
+interface TarefasModalProps {
+  isOpen: boolean
+  onClose: () => void
+}
+
+export function TarefasModal({ isOpen, onClose }: TarefasModalProps) {
+  const [tarefas, setTarefas] = useState<Tarefa[]>([])
+  const [mostrarFormulario, setMostrarFormulario] = useState(false)
+  const [tarefaEditando, setTarefaEditando] = useState<Tarefa | null>(null)
+  const [filtroStatus, setFiltroStatus] = useState<'Todas' | 'Pendentes' | 'Concluídas'>('Todas')
+  const [formData, setFormData] = useState({
+    titulo: '',
+    descricao: '',
+    data: '',
+    horario: '',
+    prioridade: 'Média' as 'Alta' | 'Média' | 'Baixa',
+    categoria: '',
+  })
+
+  const resetForm = () => {
+    setFormData({
+      titulo: '',
+      descricao: '',
+      data: '',
+      horario: '',
+      prioridade: 'Média',
+      categoria: '',
+    })
+    setTarefaEditando(null)
+  }
+
+  const handleClose = () => {
+    resetForm()
+    setMostrarFormulario(false)
+    onClose()
+  }
+
+  const handleCloseFormulario = () => {
+    resetForm()
+    setMostrarFormulario(false)
+  }
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!formData.titulo.trim()) return
+
+    if (tarefaEditando) {
+      setTarefas((prev) =>
+        prev.map((item) =>
+          item.id === tarefaEditando.id ? { ...item, ...formData } : item,
+        ),
+      )
+    } else {
+      setTarefas((prev) => [
+        {
+          id: `${Date.now()}`,
+          ...formData,
+          status: 'Pendente',
+        },
+        ...prev,
+      ])
+    }
+
+    resetForm()
+    setMostrarFormulario(false)
+  }
+
+  const handleEdit = (tarefa: Tarefa) => {
+    setTarefaEditando(tarefa)
+    setFormData({
+      titulo: tarefa.titulo,
+      descricao: tarefa.descricao,
+      data: tarefa.data,
+      horario: tarefa.horario,
+      prioridade: tarefa.prioridade,
+      categoria: tarefa.categoria,
+    })
+    setMostrarFormulario(true)
+  }
+
+  const tarefasFiltradas = useMemo(() => {
+    if (filtroStatus === 'Pendentes') return tarefas.filter((item) => item.status === 'Pendente')
+    if (filtroStatus === 'Concluídas') return tarefas.filter((item) => item.status === 'Concluída')
+    return tarefas
+  }, [filtroStatus, tarefas])
+
+  const tarefasPendentes = tarefas.filter((item) => item.status === 'Pendente').length
+  const tarefasConcluidas = tarefas.filter((item) => item.status === 'Concluída').length
+  const percentualConclusao = tarefas.length > 0 ? Math.round((tarefasConcluidas / tarefas.length) * 100) : 0
+
+  const getPrioridadeBadge = (prioridade: string) => {
+    switch (prioridade) {
+      case 'Alta':
+        return <Badge className="app-status-danger dark:bg-transparent text-[var(--app-danger-text)] dark:text-red-300 border-transparent dark:border-red-800 text-xs">Alta</Badge>
+      case 'Média':
+        return <Badge className="app-status-warning dark:bg-amber-900/30 text-[var(--app-warning-text)] dark:text-amber-300 border-transparent dark:border-amber-800 text-xs">Média</Badge>
+      case 'Baixa':
+        return <Badge className="app-status-info dark:bg-blue-900/30 text-[var(--app-info-text)] dark:text-[var(--app-info-text)] border-transparent text-xs">Baixa</Badge>
+      default:
+        return null
+    }
+  }
+
+  return (
+    <>
+    <Dialog open={isOpen && !mostrarFormulario} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent size="xl" className="flex flex-col rounded-[24px] border-none bg-app-card p-0 shadow-2xl dark:bg-app-card-dark">
+        <DialogHeader className="shrink-0 border-b border-app-border/60 bg-[linear-gradient(180deg,rgba(22,78,187,0.08),rgba(22,78,187,0.02))] px-6 pb-5 pt-6 dark:border-app-border-dark/60 dark:bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(59,130,246,0.02))]">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--app-primary)]/15 bg-white/80 shadow-sm dark:bg-app-bg-dark/60">
+                <CheckCircle2 className="h-6 w-6 text-[var(--app-primary)]" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-normal text-app-text-primary dark:text-white">
+                  Tarefas
+                </DialogTitle>
+                <DialogDescription className="mt-0.5 text-sm text-app-text-secondary dark:text-white/65">
+                  Organize acompanhamentos, retornos e pendências da rotina da agenda.
+                </DialogDescription>
+              </div>
+            </div>
+              <Button variant="ghost" size="icon" onClick={handleClose} className="rounded-full text-app-text-secondary hover:bg-app-bg-secondary dark:text-white/75 dark:hover:bg-app-hover">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 gap-3 px-6 pt-5 md:grid-cols-3">
+          <div className="rounded-[18px] border border-app-border/70 bg-white p-4 shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/30">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Pendentes</p>
+              <Clock className="h-4 w-4 text-amber-500" />
+            </div>
+            <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{tarefasPendentes}</p>
+            <p className="mt-1 text-xs text-app-text-secondary dark:text-white/60">Itens aguardando ação</p>
+          </div>
+          <div className="rounded-[18px] border border-app-border/70 bg-white p-4 shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/30">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Concluídas</p>
+              <Sparkles className="h-4 w-4 text-emerald-500" />
+            </div>
+            <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{tarefasConcluidas}</p>
+            <p className="mt-1 text-xs text-app-text-secondary dark:text-white/60">Tarefas finalizadas</p>
+          </div>
+          <div className="rounded-[18px] border border-app-border/70 bg-white p-4 shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/30">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.18em] text-app-text-muted">Progresso</p>
+              <Layers3 className="h-4 w-4 text-[var(--app-primary)]" />
+            </div>
+            <p className="mt-3 text-3xl font-normal text-app-text-primary dark:text-white">{percentualConclusao}%</p>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-app-bg-secondary dark:bg-app-hover">
+              <div
+                className="h-full rounded-full bg-[var(--app-primary)] transition-all"
+                style={{ width: `${percentualConclusao}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 px-6 py-4">
+          <div className="flex overflow-hidden rounded-[12px] border border-app-border bg-white shadow-sm dark:border-app-border-dark dark:bg-app-bg-dark/40">
+            {(['Todas', 'Pendentes', 'Concluídas'] as const).map((status) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => setFiltroStatus(status)}
+                className={`h-10 px-4 text-sm transition-colors ${filtroStatus === status ? 'bg-app-primary text-white' : 'bg-transparent text-app-text-secondary dark:text-white/80'}`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+          <Button className="h-11 rounded-[12px] bg-app-primary px-4 text-white shadow-sm hover:bg-app-primary-hover" onClick={() => setMostrarFormulario(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nova tarefa
+          </Button>
+        </div>
+
+        <div className="overflow-auto px-6 pb-6">
+          <div className="overflow-hidden rounded-[18px] border border-app-border/70 bg-white shadow-sm dark:border-app-border-dark/70 dark:bg-app-bg-dark/20">
+            {tarefasFiltradas.length === 0 ? (
+              <div className="px-6 py-14 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-app-bg-secondary dark:bg-app-hover">
+                  <BarChart3 className="h-8 w-8 text-app-text-muted" />
+                </div>
+                <p className="mt-5 text-base text-app-text-primary dark:text-white">Nenhuma tarefa cadastrada ainda.</p>
+                <p className="mt-1 text-sm text-app-text-secondary dark:text-white/60">
+                  Crie a primeira tarefa para acompanhar retornos, pendências e lembretes da agenda.
+                </p>
+              </div>
+            ) : (
+              tarefasFiltradas.map((tarefa) => (
+                <div key={tarefa.id} className="border-b border-app-border/70 px-5 py-4 last:border-b-0 dark:border-app-border-dark/70">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setTarefas((prev) =>
+                            prev.map((item) =>
+                              item.id === tarefa.id
+                                ? { ...item, status: item.status === 'Pendente' ? 'Concluída' : 'Pendente' }
+                                : item,
+                            ),
+                          )
+                        }
+                        className="mt-0.5 rounded-full"
+                      >
+                        {tarefa.status === 'Concluída' ? (
+                          <CheckCircle2 className="h-5 w-5 text-[var(--app-primary)]" />
+                        ) : (
+                          <Circle className="h-5 w-5 text-app-text-muted" />
+                        )}
+                      </button>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-normal text-app-text-primary dark:text-white">{tarefa.titulo}</p>
+                          {getPrioridadeBadge(tarefa.prioridade)}
+                          <Badge variant="outline" className="rounded-full text-xs">
+                            {tarefa.status}
+                          </Badge>
+                        </div>
+                        {tarefa.descricao && (
+                          <p className="text-xs text-app-text-secondary dark:text-white/70">{tarefa.descricao}</p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-app-text-muted">
+                          <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{tarefa.data || '-'}</span>
+                          <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{tarefa.horario || '-'}</span>
+                          <span className="inline-flex items-center gap-1"><FileText className="h-3.5 w-3.5" />{tarefa.categoria || '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="rounded-full hover:bg-app-bg-secondary dark:hover:bg-app-hover" onClick={() => handleEdit(tarefa)}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="rounded-full hover:bg-red-50 dark:hover:bg-red-950/20" onClick={() => setTarefas((prev) => prev.filter((item) => item.id !== tarefa.id))}>
+                        <Trash2 className="h-4 w-4 text-[var(--app-danger-text)]" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={isOpen && mostrarFormulario} onOpenChange={(open) => !open && handleCloseFormulario()}>
+      <DialogContent className="rounded-[24px] border-none bg-app-card p-0 shadow-2xl dark:bg-app-card-dark">
+        <DialogHeader className="border-b border-app-border/60 bg-[linear-gradient(180deg,rgba(22,78,187,0.08),rgba(22,78,187,0.02))] px-6 pb-5 pt-6 dark:border-app-border-dark/60 dark:bg-[linear-gradient(180deg,rgba(59,130,246,0.12),rgba(59,130,246,0.02))]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <DialogTitle className="text-xl font-normal text-app-text-primary dark:text-white">
+                {tarefaEditando ? 'Editar tarefa' : 'Nova tarefa'}
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-sm text-app-text-secondary dark:text-white/60">
+                Preencha os campos abaixo para organizar um acompanhamento da agenda.
+              </DialogDescription>
+            </div>
+            <Badge variant="outline" className="rounded-full px-3 py-1 text-xs">
+              Rotina
+            </Badge>
+          </div>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4 p-6">
+          <div className="rounded-[16px] border border-app-border/60 bg-white/70 p-4 dark:border-app-border-dark/60 dark:bg-app-bg-dark/30">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-app-text-muted">
+              <Type className="h-3.5 w-3.5" />
+              Identificação
+            </div>
+            <div className="mt-4 grid gap-4">
+              <div className="grid gap-2">
+                <Label>Título</Label>
+                <Input
+                  value={formData.titulo}
+                  onChange={(event) => setFormData({ ...formData, titulo: event.target.value })}
+                  placeholder="Título da tarefa"
+                  className="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Descrição</Label>
+                <Textarea
+                  value={formData.descricao}
+                  onChange={(event) => setFormData({ ...formData, descricao: event.target.value })}
+                  placeholder="Descrição opcional..."
+                  className="min-h-[96px] rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[16px] border border-app-border/60 bg-white/70 p-4 dark:border-app-border-dark/60 dark:bg-app-bg-dark/30">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-app-text-muted">
+              <Calendar className="h-3.5 w-3.5" />
+              Agendamento
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Data</Label>
+                <DateInput value={formData.data} onChange={(value) => setFormData({ ...formData, data: value })} className="h-11" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Horário</Label>
+                <Input
+                  type="time"
+                  value={formData.horario}
+                  onChange={(event) => setFormData({ ...formData, horario: event.target.value })}
+                  className="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[16px] border border-app-border/60 bg-white/70 p-4 dark:border-app-border-dark/60 dark:bg-app-bg-dark/30">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-app-text-muted">
+              <Tag className="h-3.5 w-3.5" />
+              Classificação
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Prioridade</Label>
+                <Select value={formData.prioridade} onValueChange={(value) => setFormData({ ...formData, prioridade: value as 'Alta' | 'Média' | 'Baixa' })}>
+                  <SelectTrigger className="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Alta">Alta</SelectItem>
+                    <SelectItem value="Média">Média</SelectItem>
+                    <SelectItem value="Baixa">Baixa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Categoria</Label>
+                <Input
+                  value={formData.categoria}
+                  onChange={(event) => setFormData({ ...formData, categoria: event.target.value })}
+                  placeholder="Ex: Retorno, contato, financeiro"
+                  className="h-11 rounded-[12px] border-app-border/70 bg-white dark:border-app-border-dark/70 dark:bg-app-bg-dark/60"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[16px] border border-app-border/50 bg-app-bg-secondary/35 p-3 dark:border-app-border-dark/50 dark:bg-app-hover/30">
+            <p className="text-xs text-app-text-secondary dark:text-white/60">
+              Dica: use títulos curtos e uma categoria clara para facilitar o acompanhamento da equipe.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 border-t border-app-border/50 px-0 pt-2 dark:border-app-border-dark/50">
+            <Button type="button" variant="outline" className="rounded-[12px]" onClick={handleCloseFormulario}>
+              Cancelar
+            </Button>
+            <Button type="submit" className="rounded-[12px] bg-app-primary text-white hover:bg-app-primary-hover">
+              {tarefaEditando ? 'Salvar alterações' : 'Criar tarefa'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+    </>
+  )
+}
