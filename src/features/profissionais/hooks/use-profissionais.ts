@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useApi } from '@/hooks/use-api'
+import { isForbiddenError } from '@/lib/api-client'
 import type { ApiListResponse } from '@/types/api'
 import type { ProfissionalInput, ProfissionalItem } from '@/types/profissional'
 
@@ -10,15 +11,23 @@ export function useProfissionais() {
   const [data, setData] = useState<ProfissionalItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // 403 do requirePermission: a view mostra "acesso negado" em vez do estado de
+  // lista vazia. Fica separado de `error` para não renderizar os dois juntos.
+  const [accessDenied, setAccessDenied] = useState(false)
 
   const load = async () => {
     setIsLoading(true)
     setError(null)
+    setAccessDenied(false)
     try {
       const response = await api.get<ApiListResponse<ProfissionalItem>>('/api/profissionais')
       setData(response.data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar profissionais')
+      if (isForbiddenError(err)) {
+        setAccessDenied(true)
+      } else {
+        setError(err instanceof Error ? err.message : 'Erro ao carregar profissionais')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -30,13 +39,18 @@ export function useProfissionais() {
     const loadData = async () => {
       setIsLoading(true)
       setError(null)
+      setAccessDenied(false)
       try {
         const response = await api.get<ApiListResponse<ProfissionalItem>>('/api/profissionais')
         if (!mounted) return
         setData(response.data)
       } catch (err) {
         if (!mounted) return
-        setError(err instanceof Error ? err.message : 'Erro ao carregar profissionais')
+        if (isForbiddenError(err)) {
+          setAccessDenied(true)
+        } else {
+          setError(err instanceof Error ? err.message : 'Erro ao carregar profissionais')
+        }
       } finally {
         if (mounted) setIsLoading(false)
       }
@@ -75,6 +89,7 @@ export function useProfissionais() {
     data,
     isLoading,
     error,
+    accessDenied,
     load,
     createProfissional,
     updateProfissional,

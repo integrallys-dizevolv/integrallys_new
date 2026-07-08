@@ -49,7 +49,7 @@ function mapRow(row: Row): ContaBancaria {
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) return authErrorResponse()
-  const denied = await requirePermission(session.userId, 'financeiro', 'read')
+  const denied = await requirePermission(session.userId, 'gestao-bancaria', 'read')
   if (denied) return denied
 
   const supabase = getAppSupabase()
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const session = await getRequestAuth(request)
   if (!session) return authErrorResponse()
-  const denied = await requirePermission(session.userId, 'financeiro', 'create')
+  const denied = await requirePermission(session.userId, 'gestao-bancaria', 'create')
   if (denied) return denied
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null

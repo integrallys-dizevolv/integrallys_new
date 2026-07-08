@@ -151,7 +151,9 @@ function itemToResource(role: UserRole, item: SidebarItem): string | null {
   if (item.id === 'inicio') return 'dashboard'
   if (item.id === 'tarefas-relatorio') return 'relatorios'
   if (item.id === 'dre') return 'financeiro'
-  if (item.id === 'gestao-bancaria') return 'financeiro'
+  // gestao-bancaria NÃO reusa 'financeiro' (recepção tem financeiro p/ Caixa e
+  // veria contas bancárias completas) — cai no fallback href → recurso próprio
+  // 'gestao-bancaria' (migration 082), alinhado ao gate da API.
   if (item.id === 'cartoes') return 'financeiro'
   if (item.id === 'procedimentos-cadastro') return 'procedimentos'
   if (item.id === 'comunicacao') return 'comunicacao'

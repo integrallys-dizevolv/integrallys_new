@@ -14,6 +14,18 @@ export class ApiClientError extends Error implements ApiErrorResponse {
   }
 }
 
+/**
+ * Detecta uma negação de permissão vinda da API (`requirePermission` em
+ * src/lib/authz.ts responde 403 com code 'FORBIDDEN'). Usado pelas views para
+ * mostrar um estado de "acesso negado" em vez de "nenhum item cadastrado".
+ */
+export function isForbiddenError(err: unknown): boolean {
+  return (
+    err instanceof ApiClientError &&
+    (err.status === 403 || err.code === 'FORBIDDEN' || err.code === 'ACCESS_DENIED')
+  )
+}
+
 export async function apiClient<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
     ...init,

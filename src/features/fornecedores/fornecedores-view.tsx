@@ -3,6 +3,7 @@
 import { Boxes, Edit2, MoreHorizontal, Plus, Search, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { AcessoNegadoState } from '@/components/shared/acesso-negado-state'
 import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatCard } from '@/components/shared/stat-card'
@@ -38,8 +39,15 @@ import { FornecedorModal } from './modals/fornecedor-modal'
 type ModalType = 'create' | 'edit' | 'delete' | null
 
 export function FornecedoresView() {
-  const { data, isLoading, error, createFornecedor, updateFornecedor, deleteFornecedor } =
-    useFornecedores()
+  const {
+    data,
+    isLoading,
+    error,
+    accessDenied,
+    createFornecedor,
+    updateFornecedor,
+    deleteFornecedor,
+  } = useFornecedores()
   const [searchFilter, setSearchFilter] = useState('')
   const [modalType, setModalType] = useState<ModalType>(null)
   const [selected, setSelected] = useState<FornecedorItem | null>(null)
@@ -107,6 +115,20 @@ export function FornecedoresView() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // 403: perfil sem permissão (ex.: recepção). Mostra SÓ o estado de acesso
+  // negado — sem "Novo fornecedor" e sem o estado de "nenhum cadastrado".
+  if (accessDenied) {
+    return (
+      <div className="app-page app-page-loose app-page-frame pb-10">
+        <PageHeader
+          title="Fornecedores"
+          description="Cadastre fornecedores com razão social, CNPJ e contato comercial."
+        />
+        <AcessoNegadoState />
+      </div>
+    )
   }
 
   return (

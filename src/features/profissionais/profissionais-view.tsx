@@ -3,6 +3,7 @@
 import { Edit2, MoreHorizontal, Plus, Search, Stethoscope, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { AcessoNegadoState } from '@/components/shared/acesso-negado-state'
 import { EmptyState } from '@/components/shared/empty-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatCard } from '@/components/shared/stat-card'
@@ -43,8 +44,15 @@ const VINCULO_LABEL: Record<'interno' | 'parceiro', string> = {
 }
 
 export function ProfissionaisView() {
-  const { data, isLoading, error, createProfissional, updateProfissional, deleteProfissional } =
-    useProfissionais()
+  const {
+    data,
+    isLoading,
+    error,
+    accessDenied,
+    createProfissional,
+    updateProfissional,
+    deleteProfissional,
+  } = useProfissionais()
   const [searchFilter, setSearchFilter] = useState('')
   const [modalType, setModalType] = useState<ModalType>(null)
   const [selected, setSelected] = useState<ProfissionalItem | null>(null)
@@ -113,6 +121,20 @@ export function ProfissionaisView() {
 
   const diasAtendidos = (item: ProfissionalItem) =>
     new Set(item.horarios.map((h) => h.diaSemana)).size
+
+  // 403: perfil sem permissão (ex.: recepção). Mostra SÓ o estado de acesso
+  // negado — sem "Novo profissional" e sem o estado de "nenhum cadastrado".
+  if (accessDenied) {
+    return (
+      <div className="app-page app-page-loose app-page-frame pb-10">
+        <PageHeader
+          title="Profissionais"
+          description="Cadastre especialistas com a grade semanal de atendimento e os procedimentos que realizam."
+        />
+        <AcessoNegadoState />
+      </div>
+    )
+  }
 
   return (
     <div className="app-page app-page-loose app-page-frame pb-10">

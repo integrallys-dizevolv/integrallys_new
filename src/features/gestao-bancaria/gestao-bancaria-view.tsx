@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Plus, Building2, Upload } from 'lucide-react'
+import { AcessoNegadoState } from '@/components/shared/acesso-negado-state'
 import { PageHeader } from '@/components/shared/page-header'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -43,7 +44,7 @@ const TIPO_LABEL: Record<ContaTipo, string> = {
 }
 
 export function GestaoBancariaView() {
-  const { data, isLoading, error, create } = useContasBancarias()
+  const { data, isLoading, error, accessDenied, create } = useContasBancarias()
   const [isCreating, setIsCreating] = useState(false)
   const [isOfxOpen, setIsOfxOpen] = useState(false)
   const [selectedContaId, setSelectedContaId] = useState<string | null>(null)
@@ -81,6 +82,21 @@ export function GestaoBancariaView() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  // 403: perfil sem permissão (ex.: recepção). Mostra SÓ o estado de acesso
+  // negado — sem "Nova conta"/"Importar OFX", sem card de erro cru e sem o
+  // estado de "nenhuma conta cadastrada". É a tela mais sensível das três.
+  if (accessDenied) {
+    return (
+      <div className="app-page app-page-loose pb-10">
+        <PageHeader
+          title="Gestão Bancária"
+          description="Contas bancárias da clínica e conciliação manual via OFX."
+        />
+        <AcessoNegadoState />
+      </div>
+    )
   }
 
   return (
