@@ -14,6 +14,11 @@ export interface FinanceiroItem {
   status?: string
   metodo?: string
   observacoes?: string
+  formaPagamentoId?: string
+  contaBancariaId?: string
+  beneficiario?: string
+  parcelas?: number
+  parcelaAtual?: number
 }
 
 export interface CreateFinanceiroPayload {
@@ -27,6 +32,10 @@ export interface CreateFinanceiroPayload {
   status?: string
   observacoes?: string
   unidadeId?: string
+  formaPagamentoId?: string
+  contaBancariaId?: string
+  beneficiario?: string
+  parcelas?: number
 }
 
 export function useFinanceiro() {

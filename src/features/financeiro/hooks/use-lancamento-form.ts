@@ -12,6 +12,10 @@ export type NewLancamentoState = {
   tipo: 'receita' | 'despesa'
   data: string
   observacoes: string
+  beneficiario: string
+  formaPagamentoId: string
+  contaBancariaId: string
+  parcelas: number
 }
 
 export const initialFormState: NewLancamentoState = {
@@ -21,6 +25,10 @@ export const initialFormState: NewLancamentoState = {
   tipo: 'receita',
   data: '',
   observacoes: '',
+  beneficiario: '',
+  formaPagamentoId: '',
+  contaBancariaId: '',
+  parcelas: 1,
 }
 
 interface UseLancamentoFormParams {
@@ -52,6 +60,10 @@ export function useLancamentoForm({ onCreate, onUpdate, onDelete }: UseLancament
         tipo: formData.tipo,
         data: formData.data,
         observacoes: formData.observacoes,
+        beneficiario: formData.beneficiario || undefined,
+        formaPagamentoId: formData.formaPagamentoId || undefined,
+        contaBancariaId: formData.contaBancariaId || undefined,
+        parcelas: formData.parcelas,
       })
       toast.success('Lançamento salvo com sucesso.')
       setIsNewOpen(false)
@@ -75,6 +87,10 @@ export function useLancamentoForm({ onCreate, onUpdate, onDelete }: UseLancament
       tipo: item.tipo,
       data: item.data ? item.data.split(' ')[0].split('/').reverse().join('-') : '',
       observacoes: item.observacoes ?? '',
+      beneficiario: item.beneficiario ?? '',
+      formaPagamentoId: item.formaPagamentoId ?? '',
+      contaBancariaId: item.contaBancariaId ?? '',
+      parcelas: item.parcelas ?? 1,
     })
     setIsLancamentoEditOpen(true)
   }
@@ -96,6 +112,10 @@ export function useLancamentoForm({ onCreate, onUpdate, onDelete }: UseLancament
         observacoes: editLancamentoForm.observacoes,
         metodo: selectedLancamento.metodo,
         status: selectedLancamento.status,
+        beneficiario: editLancamentoForm.beneficiario || undefined,
+        formaPagamentoId: editLancamentoForm.formaPagamentoId || undefined,
+        contaBancariaId: editLancamentoForm.contaBancariaId || undefined,
+        parcelas: editLancamentoForm.parcelas,
       })
       toast.success('Lançamento atualizado com sucesso.')
       setIsLancamentoEditOpen(false)

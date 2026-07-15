@@ -155,6 +155,7 @@ export function mapCaixaItem(row: Record<string, unknown>) {
     bandeira: row.bandeira ? String(row.bandeira) : null,
     parcelas: row.parcelas != null ? Number(row.parcelas) : null,
     valorParcela: row.valor_parcela != null ? Number(row.valor_parcela) : null,
+    formaPagamentoId: row.forma_pagamento_id ? String(row.forma_pagamento_id) : undefined,
   }
 }
 
@@ -169,6 +170,11 @@ export function mapFinanceiroItem(row: Record<string, unknown>) {
     status: row.status ? String(row.status) : 'Pendente',
     metodo: row.metodo ? String(row.metodo) : undefined,
     observacoes: row.observacoes ? String(row.observacoes) : undefined,
+    formaPagamentoId: row.forma_pagamento_id ? String(row.forma_pagamento_id) : undefined,
+    contaBancariaId: row.conta_bancaria_id ? String(row.conta_bancaria_id) : undefined,
+    beneficiario: row.beneficiario ? String(row.beneficiario) : undefined,
+    parcelas: row.parcelas != null ? Number(row.parcelas) : undefined,
+    parcelaAtual: row.parcela_atual != null ? Number(row.parcela_atual) : undefined,
   }
 }
 
@@ -210,6 +216,8 @@ export function mapProfissionalItem(
   row: Record<string, unknown>,
   horarioRows: Array<Record<string, unknown>> = [],
   procedimentoIds: string[] = [],
+  unidadesAtuacaoIds: string[] = [],
+  repasse: { percentual: number | null; valorFixo: number | null } | null = null,
 ) {
   return {
     id: String(row.id ?? ''),
@@ -218,12 +226,23 @@ export function mapProfissionalItem(
     telefone: row.telefone ? String(row.telefone) : null,
     conselho: row.conselho ? String(row.conselho) : null,
     crm: row.crm ? String(row.crm) : null,
+    cpf: row.cpf ? String(row.cpf) : null,
+    dataNascimento: row.data_nascimento ? String(row.data_nascimento) : null,
+    rg: row.rg ? String(row.rg) : null,
+    estadoCivil: row.estado_civil ? String(row.estado_civil) : null,
+    endereco: row.endereco ? String(row.endereco) : null,
+    bairro: row.bairro ? String(row.bairro) : null,
+    cep: row.cep ? String(row.cep) : null,
+    estado: row.estado ? String(row.estado) : null,
     tipoVinculo:
       row.tipo_vinculo === 'parceiro' || row.tipo_vinculo === 'interno'
         ? (row.tipo_vinculo as 'parceiro' | 'interno')
         : 'interno',
     status: String(row.status ?? ''),
     unidadeId: row.unidade_id ? String(row.unidade_id) : null,
+    unidadesAtuacaoIds,
+    repassePercentual: repasse?.percentual ?? null,
+    repasseValorFixo: repasse?.valorFixo ?? null,
     horarios: horarioRows.map((horario) => mapProfissionalHorario(horario)),
     procedimentoIds,
   }
@@ -248,6 +267,9 @@ export function mapUnidadeItem(row: Record<string, unknown>) {
     status: String(row.status ?? ''),
     cnpj: row.cnpj ? String(row.cnpj) : undefined,
     endereco: row.endereco ? String(row.endereco) : undefined,
+    bairro: row.bairro ? String(row.bairro) : undefined,
+    cep: row.cep ? String(row.cep) : undefined,
+    estado: row.estado ? String(row.estado) : undefined,
     gestor: row.gestor_nome ? String(row.gestor_nome) : undefined,
   }
 }
@@ -387,6 +409,20 @@ export function mapProcedimentoItem(row: Record<string, unknown>) {
     codigo: row.codigo ? String(row.codigo) : undefined,
     descricao: row.descricao ? String(row.descricao) : undefined,
     valor: row.valor != null ? Number(row.valor) : undefined,
+    duracaoMin: row.duracao_min != null ? Number(row.duracao_min) : undefined,
+    temRetorno: Boolean(row.tem_retorno),
+    prazoRetornoDias: row.prazo_retorno_dias != null ? Number(row.prazo_retorno_dias) : undefined,
+    valorRetorno: row.valor_retorno != null ? Number(row.valor_retorno) : undefined,
+    ativo: Boolean(row.ativo),
+  }
+}
+
+export function mapFormaPagamentoItem(row: Record<string, unknown>) {
+  return {
+    id: String(row.id ?? ''),
+    nome: String(row.nome ?? ''),
+    tipo: String(row.tipo ?? 'outro'),
+    cartaoId: row.cartao_id ? String(row.cartao_id) : undefined,
     ativo: Boolean(row.ativo),
   }
 }

@@ -17,6 +17,7 @@ export interface CaixaItem {
   bandeira?: string | null
   parcelas?: number | null
   valorParcela?: number | null
+  formaPagamentoId?: string
 }
 
 export interface CaixaSessionState {

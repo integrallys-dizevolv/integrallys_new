@@ -99,7 +99,7 @@ async function getCaixaPayload(
   const movimentosQuery = await supabase
     .from("caixa_movimentos")
     .select(
-      "id,descricao,tipo,valor,data_movimento,forma,operador_nome,sessao_id,bandeira,parcelas,valor_parcela",
+      "id,descricao,tipo,valor,data_movimento,forma,operador_nome,sessao_id,bandeira,parcelas,valor_parcela,forma_pagamento_id",
     )
     .eq("unidade_id", unitId)
     .gte("data_movimento", `${todayKey}T00:00:00`)
@@ -287,6 +287,24 @@ export async function POST(request: NextRequest) {
         ? Number(body.valorParcela.toFixed(2))
         : null;
 
+    // Item 9b — auto-vincula ao catálogo de formas pela forma controlada
+    // (não-cartão). Determinístico: valor de select, não texto livre. Cartões
+    // geram sua própria forma no item 9c, então ficam null aqui.
+    const formaTipo = String(formaUsada);
+    let formaPagamentoId: string | null = null;
+    if (formaTipo === "dinheiro" || formaTipo === "pix" || formaTipo === "transferencia") {
+      const { data: formaCatalogo } = await supabase
+        .from("formas_pagamento")
+        .select("id")
+        .eq("tipo", formaTipo)
+        .is("cartao_id", null)
+        .eq("ativo", true)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      formaPagamentoId = formaCatalogo?.id ? String(formaCatalogo.id) : null;
+    }
+
     const { error } = await supabase.from("caixa_movimentos").insert({
       unidade_id: unitId,
       usuario_id: session.userId,
@@ -302,6 +320,7 @@ export async function POST(request: NextRequest) {
       bandeira,
       parcelas,
       valor_parcela: valorParcela,
+      forma_pagamento_id: formaPagamentoId,
     });
 
     if (error) {

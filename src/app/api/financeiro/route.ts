@@ -1,8 +1,29 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { mapFinanceiroItem } from '@/lib/domain-mappers'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
+
+// Item 9b — campos novos do lançamento (catálogo/conta/beneficiário/parcelas).
+// Aditivo: não substitui `metodo` (texto livre), que segue sendo persistido.
+function buildPaymentFields(body: Record<string, unknown>) {
+  return {
+    forma_pagamento_id:
+      typeof body.formaPagamentoId === 'string' && body.formaPagamentoId
+        ? body.formaPagamentoId
+        : null,
+    conta_bancaria_id:
+      typeof body.contaBancariaId === 'string' && body.contaBancariaId
+        ? body.contaBancariaId
+        : null,
+    beneficiario:
+      typeof body.beneficiario === 'string' && body.beneficiario.trim()
+        ? body.beneficiario.trim()
+        : null,
+    parcelas:
+      typeof body.parcelas === 'number' && body.parcelas >= 1 ? Math.round(body.parcelas) : 1,
+  }
+}
 
 async function listFinanceiro(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   const supabase = getAppSupabase()
@@ -13,7 +34,9 @@ async function listFinanceiro(session: Awaited<ReturnType<typeof getRequestAuth>
 
   let query = supabase
     .from('financeiro_lancamentos')
-    .select('id,descricao,categoria,valor,tipo,data_lancamento,metodo,status,observacoes,created_at,unidade_id')
+    .select(
+      'id,descricao,categoria,valor,tipo,data_lancamento,metodo,status,observacoes,created_at,unidade_id,forma_pagamento_id,conta_bancaria_id,beneficiario,parcelas,parcela_atual',
+    )
     .order('data_lancamento', { ascending: false })
 
   if (scopedUnit.unidadeId) {
@@ -26,7 +49,10 @@ async function listFinanceiro(session: Awaited<ReturnType<typeof getRequestAuth>
     return supabaseErrorResponse(error, 'Falha ao carregar financeiro')
   }
 
-  return NextResponse.json({ data: (data ?? []).map((row) => mapFinanceiroItem(row)), meta: session })
+  return NextResponse.json({
+    data: (data ?? []).map((row) => mapFinanceiroItem(row)),
+    meta: session,
+  })
 }
 
 export async function GET(request: NextRequest) {
@@ -76,6 +102,7 @@ export async function POST(request: NextRequest) {
     metodo: body.metodo ?? null,
     status: 'Pendente',
     observacoes: body.observacoes ?? null,
+    ...buildPaymentFields(body),
   })
 
   if (error) {
@@ -92,7 +119,13 @@ export async function PUT(request: NextRequest) {
   if (denied) return denied
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null
-  if (!body?.id || !body?.descricao || !body?.categoria || typeof body.valor !== 'number' || !body?.tipo) {
+  if (
+    !body?.id ||
+    !body?.descricao ||
+    !body?.categoria ||
+    typeof body.valor !== 'number' ||
+    !body?.tipo
+  ) {
     return serverErrorResponse('Lançamento inválido', 'INVALID_FINANCEIRO_INPUT', 400)
   }
 
@@ -125,6 +158,7 @@ export async function PUT(request: NextRequest) {
       status: body.status ?? 'Pendente',
       observacoes: body.observacoes ?? null,
       updated_at: new Date().toISOString(),
+      ...buildPaymentFields(body),
     })
     .eq('id', String(body.id))
 
