@@ -163,12 +163,36 @@ export async function buildAuthPayloadFromUserId(
     .select(
       // UI-15: embarca `unidades(nome)` via PostgREST embedding pra evitar
       // SELECT extra no Header. Retorno aliasado como `unidade`.
-      "id,nome,email,perfil,status,avatar_url,unidade_id,unidade:unidades(nome)",
+      //
+      // HOTFIX SEV1 (login): o embedding é desambiguado explicitamente pela FK
+      // direta `usuarios.unidade_id` via o hint `!unidade_id`. A migration 085
+      // (profissional_unidades) criou uma tabela de junção usuarios↔unidades,
+      // o que tornou `unidades(nome)` AMBÍGUO — PostgREST passou a enxergar
+      // dois relacionamentos (a FK direta e o N:N via junção) e responde com
+      // erro PGRST201 ("more than one relationship was found"). Sem o hint,
+      // esta query volta com `error` → payload null → /api/auth/me 401 →
+      // "sessão não pôde ser carregada" para TODOS os perfis.
+      // NÃO remover o `!unidade_id`.
+      "id,nome,email,perfil,status,avatar_url,unidade_id,unidade:unidades!unidade_id(nome)",
     )
     .eq("id", userId)
     .maybeSingle();
 
-  if (error || !data) {
+  if (error) {
+    // Antes o erro era engolido silenciosamente (o `if (error || !data)`
+    // devolvia null sem log), por isso a causa raiz não aparecia nos logs do
+    // servidor. Logamos o erro real do PostgREST para diagnóstico.
+    console.error("AUTH_ME_PAYLOAD_QUERY_ERROR", {
+      userId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    return null;
+  }
+
+  if (!data) {
     return null;
   }
 
