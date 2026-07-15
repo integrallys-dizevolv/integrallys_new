@@ -9,6 +9,11 @@ export interface ProcedimentoItem {
   nome: string
   codigo?: string
   descricao?: string
+  valor?: number
+  duracaoMin?: number
+  temRetorno: boolean
+  prazoRetornoDias?: number
+  valorRetorno?: number
   ativo: boolean
 }
 
@@ -17,6 +22,11 @@ export interface ProcedimentoInput {
   nome: string
   codigo?: string
   descricao?: string
+  valor?: number
+  duracaoMin?: number
+  temRetorno?: boolean
+  prazoRetornoDias?: number
+  valorRetorno?: number
   ativo?: boolean
 }
 

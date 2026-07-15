@@ -7,6 +7,7 @@ import {
 import { requirePermission } from "@/lib/authz";
 import { mapProcedimentoItem } from "@/lib/domain-mappers";
 import { authErrorResponse, getRequestAuth } from "@/lib/request-auth";
+import { buildProcedimentoPayload } from "./procedimento-input";
 
 async function listProcedimentos(
   session: Awaited<ReturnType<typeof getRequestAuth>>,
@@ -14,7 +15,9 @@ async function listProcedimentos(
   const supabase = getAppSupabase();
   const { data, error } = await supabase
     .from("procedimentos")
-    .select("id,nome,codigo,descricao,valor,ativo")
+    .select(
+      "id,nome,codigo,descricao,valor,duracao_min,tem_retorno,prazo_retorno_dias,valor_retorno,ativo",
+    )
     .order("nome", { ascending: true });
 
   if (error) {
@@ -65,13 +68,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getAppSupabase();
-  const { error } = await supabase.from("procedimentos").insert({
-    nome: String(body.nome),
-    codigo: body.codigo ? String(body.codigo) : null,
-    descricao: body.descricao ? String(body.descricao) : null,
-    valor: body.valor != null && body.valor !== "" ? Number(body.valor) : null,
-    ativo: body.ativo !== false,
-  });
+  const { error } = await supabase
+    .from("procedimentos")
+    .insert(buildProcedimentoPayload(body, { autoCodigo: true }));
 
   if (error) {
     return supabaseErrorResponse(error, "Falha ao criar procedimento");
@@ -107,11 +106,7 @@ export async function PUT(request: NextRequest) {
   const { error } = await supabase
     .from("procedimentos")
     .update({
-      nome: String(body.nome),
-      codigo: body.codigo ? String(body.codigo) : null,
-      descricao: body.descricao ? String(body.descricao) : null,
-      valor: body.valor != null && body.valor !== "" ? Number(body.valor) : null,
-      ativo: body.ativo !== false,
+      ...buildProcedimentoPayload(body, { autoCodigo: false }),
       updated_at: new Date().toISOString(),
     })
     .eq("id", String(body.id));

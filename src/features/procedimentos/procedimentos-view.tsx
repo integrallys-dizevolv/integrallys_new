@@ -42,6 +42,11 @@ type FormState = {
   nome: string
   codigo: string
   descricao: string
+  valor: string
+  duracaoMin: string
+  temRetorno: boolean
+  prazoRetornoDias: string
+  valorRetorno: string
   ativo: boolean
 }
 
@@ -49,8 +54,16 @@ const initialFormState: FormState = {
   nome: '',
   codigo: '',
   descricao: '',
+  valor: '',
+  duracaoMin: '',
+  temRetorno: false,
+  prazoRetornoDias: '',
+  valorRetorno: '',
   ativo: true,
 }
+
+const toNumber = (value: string): number | undefined =>
+  value.trim() === '' ? undefined : Number(value)
 
 export function ProcedimentosView() {
   const { data, isLoading, error, createProcedimento, updateProcedimento, deleteProcedimento } = useProcedimentos()
@@ -86,6 +99,11 @@ export function ProcedimentosView() {
         nome: item.nome,
         codigo: item.codigo ?? '',
         descricao: item.descricao ?? '',
+        valor: item.valor != null ? String(item.valor) : '',
+        duracaoMin: item.duracaoMin != null ? String(item.duracaoMin) : '',
+        temRetorno: item.temRetorno,
+        prazoRetornoDias: item.prazoRetornoDias != null ? String(item.prazoRetornoDias) : '',
+        valorRetorno: item.valorRetorno != null ? String(item.valorRetorno) : '',
         ativo: item.ativo,
       })
       return
@@ -115,6 +133,11 @@ export function ProcedimentosView() {
           nome: formData.nome.trim(),
           codigo: formData.codigo.trim() || undefined,
           descricao: formData.descricao.trim() || undefined,
+          valor: toNumber(formData.valor),
+          duracaoMin: toNumber(formData.duracaoMin),
+          temRetorno: formData.temRetorno,
+          prazoRetornoDias: formData.temRetorno ? toNumber(formData.prazoRetornoDias) : undefined,
+          valorRetorno: formData.temRetorno ? toNumber(formData.valorRetorno) : undefined,
           ativo: formData.ativo,
         })
         toast.success('Procedimento atualizado com sucesso.')
@@ -123,6 +146,11 @@ export function ProcedimentosView() {
           nome: formData.nome.trim(),
           codigo: formData.codigo.trim() || undefined,
           descricao: formData.descricao.trim() || undefined,
+          valor: toNumber(formData.valor),
+          duracaoMin: toNumber(formData.duracaoMin),
+          temRetorno: formData.temRetorno,
+          prazoRetornoDias: formData.temRetorno ? toNumber(formData.prazoRetornoDias) : undefined,
+          valorRetorno: formData.temRetorno ? toNumber(formData.valorRetorno) : undefined,
           ativo: formData.ativo,
         })
         toast.success('Procedimento criado com sucesso.')
@@ -302,6 +330,7 @@ export function ProcedimentosView() {
                   value={formData.codigo}
                   onChange={(event) => setFormData((current) => ({ ...current, codigo: event.target.value }))}
                   disabled={modalType === 'view'}
+                  placeholder="Gerado automaticamente se deixado em branco"
                   className="h-12 rounded-2xl border-app-border bg-app-bg-secondary font-normal dark:border-app-border-dark dark:bg-app-hover"
                 />
               </div>
@@ -315,6 +344,84 @@ export function ProcedimentosView() {
                   className="min-h-[120px] rounded-2xl border-app-border bg-app-bg-secondary font-normal dark:border-app-border-dark dark:bg-app-hover"
                 />
               </div>
+
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="font-normal text-app-text-primary dark:text-white/80">Valor (R$)</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={formData.valor}
+                    onChange={(event) => setFormData((current) => ({ ...current, valor: event.target.value }))}
+                    disabled={modalType === 'view'}
+                    placeholder="0,00"
+                    className="h-12 rounded-2xl border-app-border bg-app-bg-secondary font-normal dark:border-app-border-dark dark:bg-app-hover"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-normal text-app-text-primary dark:text-white/80">Duração (min)</Label>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    step="5"
+                    min="0"
+                    value={formData.duracaoMin}
+                    onChange={(event) => setFormData((current) => ({ ...current, duracaoMin: event.target.value }))}
+                    disabled={modalType === 'view'}
+                    placeholder="Ex: 30"
+                    className="h-12 rounded-2xl border-app-border bg-app-bg-secondary font-normal dark:border-app-border-dark dark:bg-app-hover"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-2xl border border-app-border px-4 py-3 dark:border-app-border-dark">
+                <div>
+                  <p className="font-normal text-app-text-primary dark:text-white">Tem retorno?</p>
+                  <p className="text-sm text-app-text-secondary dark:text-white/60 font-normal">
+                    Ative para definir prazo e valor do retorno vinculado a este procedimento.
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.temRetorno}
+                  onCheckedChange={(value) => setFormData((current) => ({ ...current, temRetorno: value }))}
+                  disabled={modalType === 'view'}
+                />
+              </div>
+
+              {formData.temRetorno ? (
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="font-normal text-app-text-primary dark:text-white/80">Prazo do retorno (dias)</Label>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      step="1"
+                      min="0"
+                      value={formData.prazoRetornoDias}
+                      onChange={(event) => setFormData((current) => ({ ...current, prazoRetornoDias: event.target.value }))}
+                      disabled={modalType === 'view'}
+                      placeholder="Ex: 30"
+                      className="h-12 rounded-2xl border-app-border bg-app-bg-secondary font-normal dark:border-app-border-dark dark:bg-app-hover"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-normal text-app-text-primary dark:text-white/80">Valor do retorno (R$)</Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0"
+                      value={formData.valorRetorno}
+                      onChange={(event) => setFormData((current) => ({ ...current, valorRetorno: event.target.value }))}
+                      disabled={modalType === 'view'}
+                      placeholder="0,00"
+                      className="h-12 rounded-2xl border-app-border bg-app-bg-secondary font-normal dark:border-app-border-dark dark:bg-app-hover"
+                    />
+                  </div>
+                </div>
+              ) : null}
 
               <div className="flex items-center justify-between rounded-2xl border border-app-border px-4 py-3 dark:border-app-border-dark">
                 <div>
