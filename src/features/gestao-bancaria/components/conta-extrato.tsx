@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ArrowDownLeft, ArrowUpRight, ScrollText } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, Receipt, ScrollText } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { ContaBancaria } from '../hooks/use-contas-bancarias'
+import { useContaLancamentos } from '../hooks/use-conta-lancamentos'
 import { type ContaMovimento, useContaMovimentos } from '../hooks/use-conta-movimentos'
 
 const formatCurrency = (value: number) =>
@@ -32,6 +33,7 @@ interface Props {
 
 export function ContaExtrato({ conta, onClose }: Props) {
   const { movimentos, isLoading, error } = useContaMovimentos(conta?.id ?? null)
+  const { lancamentos } = useContaLancamentos(conta?.id ?? null)
 
   // saldo corrido: ordena asc, acumula a partir do saldo inicial, exibe desc
   const linhas = useMemo(() => {
@@ -194,6 +196,48 @@ export function ContaExtrato({ conta, onClose }: Props) {
             )}
           </div>
         </div>
+
+        {/* Item 9d — Lançamentos do Financeiro vinculados a esta conta.
+            Exibição pura: NÃO soma no saldo nem interfere na conciliação OFX. */}
+        {lancamentos.length > 0 && (
+          <div className="space-y-2">
+            <p className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-app-text-secondary dark:text-white/60">
+              <Receipt className="h-3.5 w-3.5" /> Lançamentos do Financeiro vinculados a esta conta
+            </p>
+            <p className="text-[11px] text-app-text-muted">
+              Apenas visualização — não entra no saldo nem na conciliação do extrato acima.
+            </p>
+            <div className="overflow-hidden rounded-2xl border border-app-border dark:border-app-border-dark">
+              <ul className="max-h-[28vh] divide-y divide-app-border overflow-y-auto dark:divide-app-border-dark">
+                {lancamentos.map((l) => {
+                  const receita = l.tipo === 'receita'
+                  const cor = receita ? 'var(--app-success-text)' : 'var(--app-danger-text)'
+                  return (
+                    <li
+                      key={l.id}
+                      className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-app-bg-secondary/40 dark:hover:bg-white/[0.03]"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-app-text-primary dark:text-white">
+                          {l.descricao || 'Lançamento'}
+                        </p>
+                        <p className="flex flex-wrap items-center gap-x-2 text-xs text-app-text-muted">
+                          <span className="tabular-nums">{formatDate(l.dataLancamento)}</span>
+                          {l.beneficiario ? <span className="truncate">· {l.beneficiario}</span> : null}
+                          {l.status ? <span>· {l.status}</span> : null}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-sm font-medium tabular-nums" style={{ color: cor }}>
+                        {receita ? '+' : '−'}
+                        {formatCurrency(l.valor)}
+                      </p>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )
