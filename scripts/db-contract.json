@@ -98,7 +98,8 @@
       "bandeira",
       "parcelas",
       "valor_parcela",
-      "operador_id"
+      "operador_id",
+      "forma_pagamento_id"
     ],
     "caixa_sessoes": [
       "id",
@@ -143,7 +144,8 @@
       "dia_vencimento",
       "ativo",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "conta_bancaria_id"
     ],
     "cartoes_paciente": [
       "id",
@@ -311,7 +313,21 @@
       "status",
       "observacoes",
       "vencimento",
-      "categoria_dre"
+      "categoria_dre",
+      "forma_pagamento_id",
+      "conta_bancaria_id",
+      "beneficiario",
+      "parcelas",
+      "parcela_atual"
+    ],
+    "formas_pagamento": [
+      "id",
+      "nome",
+      "tipo",
+      "cartao_id",
+      "ativo",
+      "created_at",
+      "updated_at"
     ],
     "lista_espera": [
       "id",
@@ -392,7 +408,9 @@
       "rg",
       "inscricao_estadual",
       "origem",
-      "vinculo_tipo",
+      "origem_detalhe",
+      "vinculo_tipos",
+      "precisa_nf",
       "photo_url",
       "cep",
       "logradouro",
@@ -485,7 +503,11 @@
       "ativo",
       "created_at",
       "updated_at",
-      "valor"
+      "valor",
+      "duracao_min",
+      "tem_retorno",
+      "prazo_retorno_dias",
+      "valor_retorno"
     ],
     "produtos_estoque": [
       "id",
@@ -519,6 +541,11 @@
     "profissional_procedimentos": [
       "profissional_id",
       "procedimento_id",
+      "created_at"
+    ],
+    "profissional_unidades": [
+      "profissional_id",
+      "unidade_id",
       "created_at"
     ],
     "prontuarios": [
@@ -591,7 +618,10 @@
       "gestor_nome",
       "status",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "bairro",
+      "cep",
+      "estado"
     ],
     "usuario_permissoes": [
       "id",
@@ -626,7 +656,14 @@
       "tipo_vinculo",
       "especialistas_permitidos",
       "cpf",
-      "crm"
+      "crm",
+      "data_nascimento",
+      "rg",
+      "estado_civil",
+      "endereco",
+      "bairro",
+      "cep",
+      "estado"
     ],
     "v_agendamento_pagamento_resumo": [
       "agendamento_id",

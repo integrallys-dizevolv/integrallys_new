@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useContasBancarias } from '@/features/gestao-bancaria/hooks/use-contas-bancarias'
 import {
   useCartoesEmpresariais,
   type CartaoEmpresarial,
@@ -59,6 +60,8 @@ export function CartoesEmpresariaisView() {
     criarCartao,
     registrarMovimento,
   } = useCartoesEmpresariais()
+  const { data: contas } = useContasBancarias()
+  const contaNomeById = useMemo(() => new Map(contas.map((conta) => [conta.id, conta.nome])), [contas])
 
   const [aba, setAba] = useState<Aba>('corporativos')
   const [novoCartaoOpen, setNovoCartaoOpen] = useState(false)
@@ -247,6 +250,15 @@ export function CartoesEmpresariaisView() {
                             </p>
                           </div>
                         </div>
+
+                        {cartao.contaBancariaId && (
+                          <div className="pt-1 text-xs">
+                            <p className="text-app-text-muted">Conta de débito da fatura</p>
+                            <p className="font-medium text-app-text-primary dark:text-white">
+                              {contaNomeById.get(cartao.contaBancariaId) ?? '—'}
+                            </p>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </button>

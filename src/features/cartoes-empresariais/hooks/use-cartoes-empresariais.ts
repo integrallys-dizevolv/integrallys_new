@@ -26,6 +26,7 @@ export interface CartaoEmpresarial {
   ultimosDigitos: string | null
   limiteTotal: number
   diaVencimento: number | null
+  contaBancariaId: string | null
   ativo: boolean
   limiteUtilizado: number
   limiteDisponivel: number
@@ -64,6 +65,7 @@ export interface NovoCartaoInput {
   limiteTotal: number
   diaVencimento?: number | null
   unidadeId?: string | null
+  contaBancariaId?: string | null
 }
 
 export interface NovoMovimentoInput {

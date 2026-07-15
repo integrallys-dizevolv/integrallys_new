@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useContasBancarias } from '@/features/gestao-bancaria/hooks/use-contas-bancarias'
 import type { NovoCartaoInput } from '../hooks/use-cartoes-empresariais'
 
 const BANDEIRAS = ['Visa', 'Mastercard', 'Elo', 'Amex', 'Hipercard', 'Outro']
@@ -31,6 +32,7 @@ interface FormState {
   ultimosDigitos: string
   limiteTotal: string
   diaVencimento: string
+  contaBancariaId: string
 }
 
 const INITIAL: FormState = {
@@ -39,9 +41,12 @@ const INITIAL: FormState = {
   ultimosDigitos: '',
   limiteTotal: '',
   diaVencimento: '',
+  contaBancariaId: '',
 }
 
 export function NovoCartaoModal({ open, onClose, onSubmit, isSubmitting }: Props) {
+  const { data: contas } = useContasBancarias()
+  const contasAtivas = contas.filter((conta) => conta.ativo)
   const [form, setForm] = useState<FormState>(INITIAL)
 
   useEffect(() => {
@@ -58,6 +63,7 @@ export function NovoCartaoModal({ open, onClose, onSubmit, isSubmitting }: Props
       ultimosDigitos: form.ultimosDigitos.replace(/\D/g, '').slice(-4) || null,
       limiteTotal,
       diaVencimento,
+      contaBancariaId: form.contaBancariaId || null,
     })
   }
 
@@ -144,6 +150,28 @@ export function NovoCartaoModal({ open, onClose, onSubmit, isSubmitting }: Props
                   inputMode="numeric"
                   className="h-11 rounded-xl"
                 />
+              </div>
+
+              <div className="space-y-3 md:col-span-2">
+                <Label>Conta de débito da fatura (opcional)</Label>
+                <Select
+                  value={form.contaBancariaId || 'none'}
+                  onValueChange={(value) =>
+                    setForm((current) => ({ ...current, contaBancariaId: value === 'none' ? '' : value }))
+                  }
+                >
+                  <SelectTrigger className="h-11 rounded-xl">
+                    <SelectValue placeholder="Selecione a conta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhuma</SelectItem>
+                    {contasAtivas.map((conta) => (
+                      <SelectItem key={conta.id} value={conta.id}>
+                        {conta.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

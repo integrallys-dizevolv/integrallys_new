@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import { buildCartaoFormaPayload } from './cartao-forma'
 
 type CartaoRow = {
   id: string
@@ -12,6 +13,7 @@ type CartaoRow = {
   limite_total: number | null
   dia_vencimento: number | null
   ativo: boolean | null
+  conta_bancaria_id: string | null
   created_at: string | null
   updated_at: string | null
 }
@@ -72,6 +74,7 @@ function mapCartao(row: CartaoRow, movimentos: MovimentoRow[]) {
     ultimosDigitos: row.ultimos_digitos,
     limiteTotal,
     diaVencimento: row.dia_vencimento,
+    contaBancariaId: row.conta_bancaria_id,
     ativo: row.ativo ?? true,
     limiteUtilizado: Number(utilizado.toFixed(2)),
     limiteDisponivel: Number((limiteTotal - utilizado).toFixed(2)),
@@ -102,12 +105,41 @@ function detectBandeira(metodo: string | null): { bandeira: string; tipo: 'credi
   return { bandeira, tipo }
 }
 
+// Item 9c — cria/atualiza a forma de pagamento espelho do cartão (filho-sincronizado,
+// mesmo padrão de Profissionais). Match por cartao_id: atualiza se existir, senão insere.
+async function syncCartaoForma(
+  supabase: ReturnType<typeof getAppSupabase>,
+  cartao: { id: string; nome: string; ultimosDigitos?: string | null },
+) {
+  const { data: existente, error: lookupError } = await supabase
+    .from('formas_pagamento')
+    .select('id')
+    .eq('cartao_id', cartao.id)
+    .limit(1)
+    .maybeSingle()
+  if (lookupError) return lookupError
+
+  const payload = buildCartaoFormaPayload(cartao.id, cartao.nome, cartao.ultimosDigitos)
+
+  if (existente?.id) {
+    const { error } = await supabase
+      .from('formas_pagamento')
+      .update({ nome: payload.nome, ativo: true, updated_at: new Date().toISOString() })
+      .eq('id', String(existente.id))
+    return error ?? null
+  }
+  const { error } = await supabase.from('formas_pagamento').insert(payload)
+  return error ?? null
+}
+
 async function listCartoes() {
   const supabase = getAppSupabase()
 
   const { data: cartoesRaw, error: cartoesError } = await supabase
     .from('cartoes_empresariais')
-    .select('id,unidade_id,nome,bandeira,ultimos_digitos,limite_total,dia_vencimento,ativo,created_at,updated_at')
+    .select(
+      'id,unidade_id,nome,bandeira,ultimos_digitos,limite_total,dia_vencimento,ativo,conta_bancaria_id,created_at,updated_at',
+    )
     .eq('ativo', true)
     .order('nome', { ascending: true })
 
@@ -243,21 +275,48 @@ export async function POST(request: NextRequest) {
         ? Math.floor(body.diaVencimento)
         : null
 
-    const { error } = await supabase.from('cartoes_empresariais').insert({
-      unidade_id: typeof body.unidadeId === 'string' && body.unidadeId.length > 0 ? body.unidadeId : null,
-      nome: body.nome.trim(),
-      bandeira: typeof body.bandeira === 'string' && body.bandeira.length > 0 ? body.bandeira : null,
-      ultimos_digitos:
-        typeof body.ultimosDigitos === 'string' && body.ultimosDigitos.length > 0
-          ? body.ultimosDigitos.replace(/\D/g, '').slice(-4)
-          : null,
-      limite_total: limiteTotal,
-      dia_vencimento: diaVencimento,
-    })
+    const nomeCartao = body.nome.trim()
+    const ultimosDigitos =
+      typeof body.ultimosDigitos === 'string' && body.ultimosDigitos.length > 0
+        ? body.ultimosDigitos.replace(/\D/g, '').slice(-4)
+        : null
+
+    const { data: novoCartao, error } = await supabase
+      .from('cartoes_empresariais')
+      .insert({
+        unidade_id: typeof body.unidadeId === 'string' && body.unidadeId.length > 0 ? body.unidadeId : null,
+        nome: nomeCartao,
+        bandeira: typeof body.bandeira === 'string' && body.bandeira.length > 0 ? body.bandeira : null,
+        ultimos_digitos: ultimosDigitos,
+        limite_total: limiteTotal,
+        dia_vencimento: diaVencimento,
+        conta_bancaria_id:
+          typeof body.contaBancariaId === 'string' && body.contaBancariaId.length > 0
+            ? body.contaBancariaId
+            : null,
+      })
+      .select('id')
+      .single()
 
     if (error) {
       return supabaseErrorResponse(error, 'Falha ao criar cartão')
     }
+    if (!novoCartao?.id) {
+      return serverErrorResponse('Falha ao criar cartão', 'CARTAO_CREATE_FAILED', 500)
+    }
+
+    // Item 9c — cria a forma de pagamento espelho do cartão. Se falhar, desfaz o
+    // cartão recém-criado (ainda sem movimentos) para não deixar cartão órfão.
+    const formaError = await syncCartaoForma(supabase, {
+      id: String(novoCartao.id),
+      nome: nomeCartao,
+      ultimosDigitos,
+    })
+    if (formaError) {
+      await supabase.from('cartoes_empresariais').delete().eq('id', String(novoCartao.id))
+      return supabaseErrorResponse(formaError, 'Falha ao sincronizar forma de pagamento do cartão')
+    }
+
     return listCartoes()
   }
 
@@ -334,6 +393,15 @@ export async function DELETE(request: NextRequest) {
 
   if (error) {
     return supabaseErrorResponse(error, 'Falha ao desativar cartão')
+  }
+
+  // Item 9c — desativa a forma espelho (não apaga; pode haver lançamentos ref.).
+  const { error: formaError } = await supabase
+    .from('formas_pagamento')
+    .update({ ativo: false, updated_at: new Date().toISOString() })
+    .eq('cartao_id', body.id)
+  if (formaError) {
+    return supabaseErrorResponse(formaError, 'Falha ao desativar forma de pagamento do cartão')
   }
 
   return listCartoes()
