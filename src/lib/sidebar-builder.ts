@@ -13,6 +13,7 @@ const SIDEBAR_BY_ROLE: Record<UserRole, SidebarItem[]> = {
     { id: 'unidades', label: 'Unidades', icon: 'Building', href: '/unidades' },
     { id: 'procedimentos-cadastro', label: 'Procedimentos', icon: 'ClipboardList', href: '/procedimentos' },
     { id: 'financeiro', label: 'Financeiro', icon: 'CreditCard', href: '/financeiro' },
+    { id: 'formas-pagamento', label: 'Formas de Pagamento', icon: 'Wallet', href: '/formas-pagamento' },
     { id: 'cartoes', label: 'Cartões', icon: 'CreditCard', href: '/cartoes' },
     { id: 'gestao-bancaria', label: 'Gestão Bancária', icon: 'Building2', href: '/gestao-bancaria' },
     { id: 'dre', label: 'DRE', icon: 'BarChart2', href: '/dre' },
@@ -37,6 +38,7 @@ const SIDEBAR_BY_ROLE: Record<UserRole, SidebarItem[]> = {
     { id: 'documentacao', label: 'Documentação Clínica', icon: 'FileText', href: '/documentacao' },
     { id: 'cat-financeiro', label: 'Financeiro', icon: 'Wallet', type: 'category' },
     { id: 'financeiro', label: 'Financeiro', icon: 'DollarSign', href: '/financeiro' },
+    { id: 'formas-pagamento', label: 'Formas de Pagamento', icon: 'Wallet', href: '/formas-pagamento' },
     { id: 'cartoes', label: 'Cartões', icon: 'CreditCard', href: '/cartoes' },
     { id: 'gestao-bancaria', label: 'Gestão Bancária', icon: 'Building2', href: '/gestao-bancaria' },
     { id: 'dre', label: 'DRE', icon: 'BarChart2', href: '/dre' },
@@ -120,7 +122,9 @@ const SIDEBAR_BY_ROLE: Record<UserRole, SidebarItem[]> = {
     { id: 'unidades', label: 'Unidades', icon: 'Building2', href: '/unidades' },
     { id: 'procedimentos-cadastro', label: 'Procedimentos', icon: 'ClipboardList', href: '/procedimentos' },
     { id: 'financeiro', label: 'Financeiro', icon: 'Wallet', href: '/financeiro' },
+    { id: 'formas-pagamento', label: 'Formas de Pagamento', icon: 'Wallet', href: '/formas-pagamento' },
     { id: 'cartoes', label: 'Cartões', icon: 'CreditCard', href: '/cartoes' },
+    { id: 'gestao-bancaria', label: 'Gestão Bancária', icon: 'Building2', href: '/gestao-bancaria' },
     { id: 'dre', label: 'DRE', icon: 'BarChart2', href: '/dre' },
     { id: 'repasse', label: 'Repasse', icon: 'ArrowLeftRight', href: '/repasse' },
     { id: 'relatorios', label: 'Relatórios', icon: 'BarChart2', href: '/relatorios' },
@@ -155,6 +159,7 @@ function itemToResource(role: UserRole, item: SidebarItem): string | null {
   // veria contas bancárias completas) — cai no fallback href → recurso próprio
   // 'gestao-bancaria' (migration 082), alinhado ao gate da API.
   if (item.id === 'cartoes') return 'financeiro'
+  if (item.id === 'formas-pagamento') return 'financeiro'
   if (item.id === 'procedimentos-cadastro') return 'procedimentos'
   if (item.id === 'comunicacao') return 'comunicacao'
   if (item.id === 'config-clinica') return 'configuracoes'
