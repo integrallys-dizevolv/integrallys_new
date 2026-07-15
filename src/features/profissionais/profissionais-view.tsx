@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useUnidades } from '@/hooks/use-unidades'
 import type { ProfissionalInput, ProfissionalItem } from '@/types/profissional'
 import { useProfissionais } from './hooks/use-profissionais'
 import { ProfissionalModal } from './modals/profissional-modal'
@@ -53,6 +54,7 @@ export function ProfissionaisView() {
     updateProfissional,
     deleteProfissional,
   } = useProfissionais()
+  const { data: unidades } = useUnidades()
   const [searchFilter, setSearchFilter] = useState('')
   const [modalType, setModalType] = useState<ModalType>(null)
   const [selected, setSelected] = useState<ProfissionalItem | null>(null)
@@ -122,6 +124,18 @@ export function ProfissionaisView() {
   const diasAtendidos = (item: ProfissionalItem) =>
     new Set(item.horarios.map((h) => h.diaSemana)).size
 
+  const unidadeNomeById = useMemo(
+    () => new Map(unidades.map((unidade) => [unidade.id, unidade.nome])),
+    [unidades],
+  )
+
+  // Principal (usuarios.unidade_id) + filiais adicionais (profissional_unidades).
+  const filiaisNomes = (item: ProfissionalItem): string[] =>
+    [
+      ...(item.unidadeId ? [unidadeNomeById.get(item.unidadeId)] : []),
+      ...item.unidadesAtuacaoIds.map((id) => unidadeNomeById.get(id)),
+    ].filter((nome): nome is string => Boolean(nome))
+
   // 403: perfil sem permissão (ex.: recepção). Mostra SÓ o estado de acesso
   // negado — sem "Novo profissional" e sem o estado de "nenhum cadastrado".
   if (accessDenied) {
@@ -184,6 +198,9 @@ export function ProfissionaisView() {
                     Vínculo
                   </TableHead>
                   <TableHead className="px-6 py-4 text-xs font-normal uppercase tracking-wider text-[#6a7282] dark:text-app-text-muted">
+                    Filiais
+                  </TableHead>
+                  <TableHead className="px-6 py-4 text-xs font-normal uppercase tracking-wider text-[#6a7282] dark:text-app-text-muted">
                     Atendimento
                   </TableHead>
                   <TableHead className="px-6 py-4 text-xs font-normal uppercase tracking-wider text-[#6a7282] dark:text-app-text-muted">
@@ -197,7 +214,7 @@ export function ProfissionaisView() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-20 text-center">
+                    <TableCell colSpan={7} className="py-20 text-center">
                       <p className="text-base font-normal text-[#6a7282] dark:text-app-text-muted">
                         Carregando profissionais...
                       </p>
@@ -205,7 +222,7 @@ export function ProfissionaisView() {
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-20 text-center">
+                    <TableCell colSpan={7} className="py-20 text-center">
                       <EmptyState
                         icon={Stethoscope}
                         title="Nenhum profissional cadastrado."
@@ -235,6 +252,18 @@ export function ProfissionaisView() {
                       </TableCell>
                       <TableCell className="px-6 py-4 text-sm text-[#6a7282] dark:text-app-text-muted">
                         {VINCULO_LABEL[item.tipoVinculo]}
+                      </TableCell>
+                      <TableCell className="px-6 py-4 text-sm text-[#6a7282] dark:text-app-text-muted">
+                        {(() => {
+                          const nomes = filiaisNomes(item)
+                          if (nomes.length === 0) return '--'
+                          return (
+                            <span className="line-clamp-1" title={nomes.join(', ')}>
+                              {nomes[0]}
+                              {nomes.length > 1 ? ` +${nomes.length - 1}` : ''}
+                            </span>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell className="px-6 py-4 text-sm text-[#6a7282] dark:text-app-text-muted">
                         {diasAtendidos(item) > 0

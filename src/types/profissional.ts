@@ -40,9 +40,23 @@ export interface ProfissionalItem {
   conselho?: string | null
   /** Número de registro no conselho. */
   crm?: string | null
+  cpf?: string | null
+  dataNascimento?: string | null
+  rg?: string | null
+  estadoCivil?: string | null
+  endereco?: string | null
+  bairro?: string | null
+  cep?: string | null
+  estado?: string | null
   tipoVinculo: ProfissionalTipoVinculo
+  /** Regra de repasse ativa (só faz sentido p/ parceiro) — para prefill do modal. */
+  repassePercentual?: number | null
+  repasseValorFixo?: number | null
   status: string
+  /** Unidade principal / de login. */
   unidadeId?: string | null
+  /** Filiais ADICIONAIS onde também atende (profissional_unidades) — exclui a principal. */
+  unidadesAtuacaoIds: string[]
   horarios: ProfissionalHorario[]
   procedimentoIds: string[]
 }
@@ -56,9 +70,23 @@ export interface ProfissionalInput {
   telefone?: string | null
   conselho?: string | null
   crm?: string | null
+  cpf?: string | null
+  dataNascimento?: string | null
+  rg?: string | null
+  estadoCivil?: string | null
+  endereco?: string | null
+  bairro?: string | null
+  cep?: string | null
+  estado?: string | null
   tipoVinculo: ProfissionalTipoVinculo
+  /** Regra de repasse (só aplicada quando parceiro). */
+  repassePercentual?: number | null
+  repasseValorFixo?: number | null
   status?: string
+  /** Unidade principal / de login. */
   unidadeId?: string | null
+  /** Filiais ADICIONAIS onde também atende — exclui a principal. */
+  unidadesAtuacaoIds: string[]
   horarios: ProfissionalHorario[]
   procedimentoIds: string[]
 }

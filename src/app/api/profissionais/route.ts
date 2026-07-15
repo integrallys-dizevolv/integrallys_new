@@ -52,12 +52,18 @@ function normalizeHorarios(value: unknown): NormalizedHorario[] {
   return Array.from(byKey.values())
 }
 
-function normalizeProcedimentoIds(value: unknown): string[] {
+function normalizeIdList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   const ids = (value as unknown[])
     .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
     .filter((entry) => entry.length > 0)
   return Array.from(new Set(ids))
+}
+
+function parseRepasseNumber(value: unknown): number | null {
+  if (value == null || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function validateProfissionalBody(body: ProfissionalBody, requirePassword: boolean) {
@@ -102,10 +108,21 @@ function validateProfissionalBody(body: ProfissionalBody, requirePassword: boole
       telefone: String(body.telefone ?? '').trim() || null,
       conselho: String(body.conselho ?? '').trim() || null,
       crm: String(body.crm ?? '').trim() || null,
+      cpf: String(body.cpf ?? '').trim() || null,
+      dataNascimento: String(body.dataNascimento ?? '').trim() || null,
+      rg: String(body.rg ?? '').trim() || null,
+      estadoCivil: String(body.estadoCivil ?? '').trim() || null,
+      endereco: String(body.endereco ?? '').trim() || null,
+      bairro: String(body.bairro ?? '').trim() || null,
+      cep: String(body.cep ?? '').trim() || null,
+      estado: String(body.estado ?? '').trim() || null,
       unidadeId: String(body.unidadeId ?? body.unidade_id ?? '').trim() || null,
       tipoVinculo,
+      repassePercentual: parseRepasseNumber(body.repassePercentual),
+      repasseValorFixo: parseRepasseNumber(body.repasseValorFixo),
       horarios: normalizeHorarios(body.horarios),
-      procedimentoIds: normalizeProcedimentoIds(body.procedimentoIds),
+      procedimentoIds: normalizeIdList(body.procedimentoIds),
+      unidadesAtuacaoIds: normalizeIdList(body.unidadesAtuacaoIds),
     },
   }
 }
@@ -115,7 +132,9 @@ async function listProfissionais(session: Awaited<ReturnType<typeof getRequestAu
 
   const { data: profissionais, error } = await supabase
     .from('usuarios')
-    .select('id,nome,email,telefone,conselho,crm,status,tipo_vinculo,unidade_id')
+    .select(
+      'id,nome,email,telefone,conselho,crm,cpf,data_nascimento,rg,estado_civil,endereco,bairro,cep,estado,status,tipo_vinculo,unidade_id',
+    )
     .eq('perfil', 'especialista')
     .order('nome', { ascending: true })
 
@@ -127,26 +146,51 @@ async function listProfissionais(session: Awaited<ReturnType<typeof getRequestAu
 
   const horariosByProfissional = new Map<string, Array<Record<string, unknown>>>()
   const procedimentosByProfissional = new Map<string, string[]>()
+  const unidadesByProfissional = new Map<string, string[]>()
+  const repasseByProfissional = new Map<
+    string,
+    { percentual: number | null; valorFixo: number | null }
+  >()
 
   if (ids.length > 0) {
-    const [{ data: horarios, error: horariosError }, { data: vinculos, error: vinculosError }] =
-      await Promise.all([
-        supabase
-          .from('profissional_horarios')
-          .select('id,profissional_id,dia_semana,turno,hora_inicio,hora_fim,duracao_min,ativo')
-          .in('profissional_id', ids)
-          .order('dia_semana', { ascending: true }),
-        supabase
-          .from('profissional_procedimentos')
-          .select('profissional_id,procedimento_id')
-          .in('profissional_id', ids),
-      ])
+    const [
+      { data: horarios, error: horariosError },
+      { data: vinculos, error: vinculosError },
+      { data: unidadesAtuacao, error: unidadesError },
+      { data: regras, error: regrasError },
+    ] = await Promise.all([
+      supabase
+        .from('profissional_horarios')
+        .select('id,profissional_id,dia_semana,turno,hora_inicio,hora_fim,duracao_min,ativo')
+        .in('profissional_id', ids)
+        .order('dia_semana', { ascending: true }),
+      supabase
+        .from('profissional_procedimentos')
+        .select('profissional_id,procedimento_id')
+        .in('profissional_id', ids),
+      supabase
+        .from('profissional_unidades')
+        .select('profissional_id,unidade_id')
+        .in('profissional_id', ids),
+      supabase
+        .from('regras_repasse')
+        .select('profissional_id,percentual,valor_fixo,created_at')
+        .in('profissional_id', ids)
+        .eq('ativo', true)
+        .order('created_at', { ascending: false }),
+    ])
 
     if (horariosError) {
       return supabaseErrorResponse(horariosError, 'Falha ao carregar horários')
     }
     if (vinculosError) {
       return supabaseErrorResponse(vinculosError, 'Falha ao carregar procedimentos do profissional')
+    }
+    if (unidadesError) {
+      return supabaseErrorResponse(unidadesError, 'Falha ao carregar filiais do profissional')
+    }
+    if (regrasError) {
+      return supabaseErrorResponse(regrasError, 'Falha ao carregar regras de repasse')
     }
 
     for (const row of horarios ?? []) {
@@ -161,6 +205,22 @@ async function listProfissionais(session: Awaited<ReturnType<typeof getRequestAu
       list.push(String(row.procedimento_id))
       procedimentosByProfissional.set(key, list)
     }
+    for (const row of unidadesAtuacao ?? []) {
+      const key = String(row.profissional_id)
+      const list = unidadesByProfissional.get(key) ?? []
+      list.push(String(row.unidade_id))
+      unidadesByProfissional.set(key, list)
+    }
+    // Ordenado por created_at desc: a primeira regra vista por profissional é a mais recente.
+    for (const row of regras ?? []) {
+      const key = String(row.profissional_id)
+      if (!repasseByProfissional.has(key)) {
+        repasseByProfissional.set(key, {
+          percentual: row.percentual != null ? Number(row.percentual) : null,
+          valorFixo: row.valor_fixo != null ? Number(row.valor_fixo) : null,
+        })
+      }
+    }
   }
 
   return NextResponse.json({
@@ -169,6 +229,8 @@ async function listProfissionais(session: Awaited<ReturnType<typeof getRequestAu
         row,
         horariosByProfissional.get(String(row.id)) ?? [],
         procedimentosByProfissional.get(String(row.id)) ?? [],
+        unidadesByProfissional.get(String(row.id)) ?? [],
+        repasseByProfissional.get(String(row.id)) ?? null,
       ),
     ),
     meta: session,
@@ -197,6 +259,17 @@ function buildProcedimentoRows(profissionalId: string, payload: Payload) {
   }))
 }
 
+// Filiais adicionais (item 7a) — exclui a unidade principal para não duplicar o
+// que já está em usuarios.unidade_id.
+function buildUnidadeRows(profissionalId: string, payload: Payload) {
+  return payload.unidadesAtuacaoIds
+    .filter((unidadeId) => unidadeId && unidadeId !== payload.unidadeId)
+    .map((unidadeId) => ({
+      profissional_id: profissionalId,
+      unidade_id: unidadeId,
+    }))
+}
+
 /**
  * Substitui (replace-all) as linhas filhas de um profissional com segurança:
  * snapshot → delete → insert. Se o insert falhar, restaura o snapshot — evita
@@ -205,7 +278,7 @@ function buildProcedimentoRows(profissionalId: string, payload: Payload) {
  */
 async function replaceProfissionalChildren(
   supabase: ReturnType<typeof getAppSupabase>,
-  table: 'profissional_horarios' | 'profissional_procedimentos',
+  table: 'profissional_horarios' | 'profissional_procedimentos' | 'profissional_unidades',
   profissionalId: string,
   snapshotColumns: string,
   newRows: Array<Record<string, unknown>>,
@@ -233,6 +306,47 @@ async function replaceProfissionalChildren(
     return insertError
   }
   return null
+}
+
+/**
+ * Upsert da regra de repasse do profissional (item 7b). Gerencia UMA regra ativa
+ * por profissional (a mais recente): atualiza se existir, senão insere. A tela de
+ * Repasse continua sendo o lugar para regras por unidade mais granulares.
+ */
+async function upsertRegraRepasse(
+  supabase: ReturnType<typeof getAppSupabase>,
+  profissionalId: string,
+  unidadeId: string | null,
+  percentual: number | null,
+  valorFixo: number | null,
+) {
+  const { data: existente, error: lookupError } = await supabase
+    .from('regras_repasse')
+    .select('id')
+    .eq('profissional_id', profissionalId)
+    .eq('ativo', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (lookupError) return lookupError
+
+  const payload = {
+    profissional_id: profissionalId,
+    unidade_id: unidadeId,
+    percentual,
+    valor_fixo: valorFixo,
+    ativo: true,
+  }
+
+  if (existente?.id) {
+    const { error } = await supabase
+      .from('regras_repasse')
+      .update(payload)
+      .eq('id', String(existente.id))
+    return error ?? null
+  }
+  const { error } = await supabase.from('regras_repasse').insert(payload)
+  return error ?? null
 }
 
 export async function GET(request: NextRequest) {
@@ -273,6 +387,14 @@ export async function POST(request: NextRequest) {
       telefone: payload.telefone,
       conselho: payload.conselho,
       crm: payload.crm,
+      cpf: payload.cpf,
+      data_nascimento: payload.dataNascimento,
+      rg: payload.rg,
+      estado_civil: payload.estadoCivil,
+      endereco: payload.endereco,
+      bairro: payload.bairro,
+      cep: payload.cep,
+      estado: payload.estado,
       unidade_id: payload.unidadeId,
       tipo_vinculo: payload.tipoVinculo,
     })
@@ -314,6 +436,39 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const unidadeRows = buildUnidadeRows(profissionalId, payload)
+  if (unidadeRows.length > 0) {
+    const { error: unidadesError } = await supabase
+      .from('profissional_unidades')
+      .insert(unidadeRows)
+    if (unidadesError) {
+      await supabase.from('profissional_procedimentos').delete().eq('profissional_id', profissionalId)
+      await supabase.from('profissional_horarios').delete().eq('profissional_id', profissionalId)
+      await supabase.from('usuarios').delete().eq('id', profissionalId)
+      return supabaseErrorResponse(unidadesError, 'Falha ao salvar filiais do profissional')
+    }
+  }
+
+  if (
+    payload.tipoVinculo === 'parceiro' &&
+    (payload.repassePercentual != null || payload.repasseValorFixo != null)
+  ) {
+    const repasseError = await upsertRegraRepasse(
+      supabase,
+      profissionalId,
+      payload.unidadeId,
+      payload.repassePercentual,
+      payload.repasseValorFixo,
+    )
+    if (repasseError) {
+      await supabase.from('profissional_unidades').delete().eq('profissional_id', profissionalId)
+      await supabase.from('profissional_procedimentos').delete().eq('profissional_id', profissionalId)
+      await supabase.from('profissional_horarios').delete().eq('profissional_id', profissionalId)
+      await supabase.from('usuarios').delete().eq('id', profissionalId)
+      return supabaseErrorResponse(repasseError, 'Falha ao salvar regra de repasse do profissional')
+    }
+  }
+
   return listProfissionais(session)
 }
 
@@ -345,6 +500,14 @@ export async function PUT(request: NextRequest) {
     telefone: payload.telefone,
     conselho: payload.conselho,
     crm: payload.crm,
+    cpf: payload.cpf,
+    data_nascimento: payload.dataNascimento,
+    rg: payload.rg,
+    estado_civil: payload.estadoCivil,
+    endereco: payload.endereco,
+    bairro: payload.bairro,
+    cep: payload.cep,
+    estado: payload.estado,
     unidade_id: payload.unidadeId,
     tipo_vinculo: payload.tipoVinculo,
   }
@@ -399,6 +562,33 @@ export async function PUT(request: NextRequest) {
   )
   if (procedimentosError) {
     return supabaseErrorResponse(procedimentosError, 'Falha ao atualizar procedimentos')
+  }
+
+  const unidadesError = await replaceProfissionalChildren(
+    supabase,
+    'profissional_unidades',
+    id,
+    'profissional_id,unidade_id',
+    buildUnidadeRows(id, payload),
+  )
+  if (unidadesError) {
+    return supabaseErrorResponse(unidadesError, 'Falha ao atualizar filiais')
+  }
+
+  if (
+    payload.tipoVinculo === 'parceiro' &&
+    (payload.repassePercentual != null || payload.repasseValorFixo != null)
+  ) {
+    const repasseError = await upsertRegraRepasse(
+      supabase,
+      id,
+      payload.unidadeId,
+      payload.repassePercentual,
+      payload.repasseValorFixo,
+    )
+    if (repasseError) {
+      return supabaseErrorResponse(repasseError, 'Falha ao atualizar regra de repasse do profissional')
+    }
   }
 
   return listProfissionais(session)

@@ -88,6 +88,14 @@ type BasicForm = {
   telefone: string
   conselho: string
   crm: string
+  cpf: string
+  dataNascimento: string
+  rg: string
+  estadoCivil: string
+  endereco: string
+  bairro: string
+  cep: string
+  estado: string
   tipoVinculo: 'interno' | 'parceiro'
   status: 'Ativo' | 'Inativo'
   unidadeId: string
@@ -100,6 +108,14 @@ const emptyBasic = (): BasicForm => ({
   telefone: '',
   conselho: '',
   crm: '',
+  cpf: '',
+  dataNascimento: '',
+  rg: '',
+  estadoCivil: '',
+  endereco: '',
+  bairro: '',
+  cep: '',
+  estado: '',
   tipoVinculo: 'interno',
   status: 'Ativo',
   unidadeId: '',
@@ -118,6 +134,9 @@ export function ProfissionalModal({
   const [basic, setBasic] = useState<BasicForm>(emptyBasic())
   const [grade, setGrade] = useState<GradeForm>(emptyGrade())
   const [procedimentoIds, setProcedimentoIds] = useState<string[]>([])
+  const [unidadesAtuacaoIds, setUnidadesAtuacaoIds] = useState<string[]>([])
+  const [repasseTipo, setRepasseTipo] = useState<'percentual' | 'valor_fixo'>('percentual')
+  const [repasseValor, setRepasseValor] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -129,17 +148,42 @@ export function ProfissionalModal({
       telefone: initial?.telefone ?? '',
       conselho: initial?.conselho ?? '',
       crm: initial?.crm ?? '',
+      cpf: initial?.cpf ?? '',
+      dataNascimento: initial?.dataNascimento ?? '',
+      rg: initial?.rg ?? '',
+      estadoCivil: initial?.estadoCivil ?? '',
+      endereco: initial?.endereco ?? '',
+      bairro: initial?.bairro ?? '',
+      cep: initial?.cep ?? '',
+      estado: initial?.estado ?? '',
       tipoVinculo: initial?.tipoVinculo ?? 'interno',
       status: initial?.status === 'Inativo' ? 'Inativo' : 'Ativo',
       unidadeId: initial?.unidadeId ?? '',
     })
     setGrade(gradeFromHorarios(initial))
     setProcedimentoIds(initial?.procedimentoIds ?? [])
+    setUnidadesAtuacaoIds(initial?.unidadesAtuacaoIds ?? [])
+    if (initial?.repasseValorFixo != null) {
+      setRepasseTipo('valor_fixo')
+      setRepasseValor(String(initial.repasseValorFixo))
+    } else if (initial?.repassePercentual != null) {
+      setRepasseTipo('percentual')
+      setRepasseValor(String(initial.repassePercentual))
+    } else {
+      setRepasseTipo('percentual')
+      setRepasseValor('')
+    }
   }, [isOpen, initial])
 
   const procedimentosAtivos = useMemo(
     () => procedimentos.filter((item) => item.ativo),
     [procedimentos],
+  )
+
+  // Filiais adicionais só podem ser diferentes da unidade principal.
+  const outrasUnidades = useMemo(
+    () => unidades.filter((unidade) => unidade.id !== basic.unidadeId),
+    [unidades, basic.unidadeId],
   )
 
   const setBasicField = <K extends keyof BasicForm>(key: K, value: BasicForm[K]) =>
@@ -153,6 +197,11 @@ export function ProfissionalModal({
 
   const toggleProcedimento = (id: string) =>
     setProcedimentoIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    )
+
+  const toggleUnidadeAtuacao = (id: string) =>
+    setUnidadesAtuacaoIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     )
 
@@ -203,6 +252,10 @@ export function ProfissionalModal({
 
     setIsSubmitting(true)
     try {
+      const parsed = Number(repasseValor)
+      const repasseNumber =
+        repasseValor.trim() === '' || !Number.isFinite(parsed) ? null : parsed
+      const isParceiro = basic.tipoVinculo === 'parceiro'
       await onSave({
         id: initial?.id,
         nome: basic.nome.trim(),
@@ -211,9 +264,20 @@ export function ProfissionalModal({
         telefone: basic.telefone.trim() || null,
         conselho: basic.conselho.trim() || null,
         crm: basic.crm.trim() || null,
+        cpf: basic.cpf.trim() || null,
+        dataNascimento: basic.dataNascimento.trim() || null,
+        rg: basic.rg.trim() || null,
+        estadoCivil: basic.estadoCivil.trim() || null,
+        endereco: basic.endereco.trim() || null,
+        bairro: basic.bairro.trim() || null,
+        cep: basic.cep.trim() || null,
+        estado: basic.estado.trim() || null,
         tipoVinculo: basic.tipoVinculo,
+        repassePercentual: isParceiro && repasseTipo === 'percentual' ? repasseNumber : null,
+        repasseValorFixo: isParceiro && repasseTipo === 'valor_fixo' ? repasseNumber : null,
         status: basic.status,
         unidadeId: basic.unidadeId || null,
+        unidadesAtuacaoIds: unidadesAtuacaoIds.filter((id) => id !== basic.unidadeId),
         horarios,
         procedimentoIds,
       })
@@ -371,7 +435,184 @@ export function ProfissionalModal({
                 </Select>
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                Também atende em (outras filiais)
+              </Label>
+              <p className="text-xs text-app-text-muted">
+                A unidade principal acima já conta como filial de atendimento. Marque aqui as
+                filiais adicionais onde este profissional também atende.
+              </p>
+              {outrasUnidades.length === 0 ? (
+                <p className="text-sm text-app-text-muted">Nenhuma outra unidade disponível.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {outrasUnidades.map((unidade) => {
+                    const selected = unidadesAtuacaoIds.includes(unidade.id)
+                    return (
+                      <button
+                        key={unidade.id}
+                        type="button"
+                        onClick={() => toggleUnidadeAtuacao(unidade.id)}
+                        className={cn(
+                          'rounded-full border px-3.5 py-1.5 text-sm transition-colors',
+                          selected
+                            ? 'border-[var(--app-primary)] bg-app-primary text-white'
+                            : 'border-app-border bg-app-card text-app-text-primary hover:bg-app-bg-secondary dark:border-app-border-dark dark:bg-app-card-dark dark:text-white dark:hover:bg-app-hover',
+                        )}
+                      >
+                        {unidade.nome}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </section>
+
+          {/* Dados pessoais */}
+          <section className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-app-text-secondary">
+                Dados pessoais
+              </h3>
+              <p className="text-xs text-app-text-muted mt-1">
+                Usados na geração de documentos como o contrato de parceria.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                  CPF
+                </Label>
+                <Input
+                  placeholder="000.000.000-00"
+                  value={basic.cpf}
+                  onChange={(e) => setBasicField('cpf', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                  RG
+                </Label>
+                <Input
+                  placeholder="Documento de identidade"
+                  value={basic.rg}
+                  onChange={(e) => setBasicField('rg', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                  Data de nascimento
+                </Label>
+                <Input
+                  type="date"
+                  value={basic.dataNascimento}
+                  onChange={(e) => setBasicField('dataNascimento', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                  Estado civil
+                </Label>
+                <Input
+                  placeholder="Ex.: Casado(a)"
+                  value={basic.estadoCivil}
+                  onChange={(e) => setBasicField('estadoCivil', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5 md:col-span-2">
+                <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                  Endereço (rua e número)
+                </Label>
+                <Input
+                  placeholder="Ex.: Av. Paulista, 1000"
+                  value={basic.endereco}
+                  onChange={(e) => setBasicField('endereco', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                  Bairro
+                </Label>
+                <Input
+                  placeholder="Bairro"
+                  value={basic.bairro}
+                  onChange={(e) => setBasicField('bairro', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                  CEP
+                </Label>
+                <Input
+                  placeholder="00000-000"
+                  value={basic.cep}
+                  onChange={(e) => setBasicField('cep', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                  Estado (UF)
+                </Label>
+                <Input
+                  placeholder="Ex.: SP"
+                  maxLength={2}
+                  value={basic.estado}
+                  onChange={(e) => setBasicField('estado', e.target.value)}
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Repasse (só parceiro) */}
+          {basic.tipoVinculo === 'parceiro' && (
+            <section className="space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-app-text-secondary">
+                  Repasse do parceiro
+                </h3>
+                <p className="text-xs text-app-text-muted mt-1">
+                  Percentual sobre o valor bruto ou um valor fixo por atendimento. Salvo como a
+                  regra ativa de repasse deste profissional.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                    Tipo de repasse
+                  </Label>
+                  <Select
+                    value={repasseTipo}
+                    onValueChange={(value: 'percentual' | 'valor_fixo') => setRepasseTipo(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="percentual">Percentual (%)</SelectItem>
+                      <SelectItem value="valor_fixo">Valor fixo (R$)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                    {repasseTipo === 'percentual' ? 'Percentual (%)' : 'Valor fixo (R$)'}
+                  </Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    placeholder={repasseTipo === 'percentual' ? 'Ex.: 30' : 'Ex.: 150,00'}
+                    value={repasseValor}
+                    onChange={(e) => setRepasseValor(e.target.value)}
+                  />
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Grade semanal */}
           <section className="space-y-4">
