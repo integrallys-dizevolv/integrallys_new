@@ -112,8 +112,10 @@ function mapPacienteToPatient(item: PacienteItem): Patient {
     activeStatus: String(item.status ?? 'Ativo'),
     plan: 'Particular',
     age: item.birthDate ? calculateAgeFromDate(String(item.birthDate)) : '-',
-    vinculoTipo: item.vinculoTipo ? String(item.vinculoTipo) : 'cliente',
+    vinculoTipos: item.vinculoTipos && item.vinculoTipos.length > 0 ? item.vinculoTipos : ['cliente'],
     source: item.source ? String(item.source) : 'Nao informado',
+    origemDetalhe: item.origemDetalhe ? String(item.origemDetalhe) : '',
+    precisaNf: item.precisaNf === true,
     photoUrl: item.photoUrl ? String(item.photoUrl) : undefined,
     addressDetails: item.addressDetails as Patient['addressDetails'],
     specialNeeds: item.specialNeeds as Patient['specialNeeds'],
@@ -166,7 +168,7 @@ export function PacientesView() {
     return patients.filter((p) => {
       // Fornecedor/prestador são linhas de `pacientes` com vínculo próprio e têm
       // tela dedicada — não devem vazar na lista de Pacientes (null-safe).
-      const isCliente = isClientePaciente(p.vinculoTipo)
+      const isCliente = isClientePaciente(p.vinculoTipos)
 
       const matchesSearch = (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.cpf || '').includes(searchTerm) ||
@@ -213,6 +215,9 @@ export function PacientesView() {
       sexo: patient.gender || patient.sexo || '',
       status: patient.activeStatus || 'Ativo',
       indicacao: patient.source || patient.indicacao || '',
+      origemDetalhe: patient.origemDetalhe || '',
+      vinculoTipos: patient.vinculoTipos && patient.vinculoTipos.length > 0 ? patient.vinculoTipos : ['cliente'],
+      precisaNf: patient.precisaNf === true,
       unidadeId: patient.unidadeId ? String(patient.unidadeId) : '',
       addressDetails: patient.addressDetails,
       criarAcessoPortal: patient.criarAcessoPortal === true,
@@ -233,6 +238,9 @@ export function PacientesView() {
       sexo: patient.gender || patient.sexo || '',
       status: patient.activeStatus || 'Ativo',
       indicacao: patient.source || patient.indicacao || '',
+      origemDetalhe: patient.origemDetalhe || '',
+      vinculoTipos: patient.vinculoTipos && patient.vinculoTipos.length > 0 ? patient.vinculoTipos : ['cliente'],
+      precisaNf: patient.precisaNf === true,
       unidadeId: patient.unidadeId ? String(patient.unidadeId) : '',
       addressDetails: patient.addressDetails,
       criarAcessoPortal: patient.criarAcessoPortal === true,
@@ -428,7 +436,7 @@ export function PacientesView() {
                         </div>
                         <div className="space-y-0.5">
                           <p className="font-normal text-app-text-primary dark:text-white text-sm">{p.name}</p>
-                          <p className="text-xs text-app-text-muted font-normal">{String(p.age || '-')} • {String(p.vinculoTipo || 'cliente')}</p>
+                          <p className="text-xs text-app-text-muted font-normal">{String(p.age || '-')} • {(p.vinculoTipos && p.vinculoTipos.length > 0 ? p.vinculoTipos : ['cliente']).join(', ')}</p>
                         </div>
                       </div>
                     </TableCell>

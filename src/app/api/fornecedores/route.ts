@@ -11,7 +11,7 @@ async function listFornecedores(session: Awaited<ReturnType<typeof getRequestAut
   const { data, error } = await supabase
     .from('pacientes')
     .select(SELECT_COLS)
-    .eq('vinculo_tipo', 'fornecedor')
+    .contains('vinculo_tipos', ['fornecedor'])
     .order('nome', { ascending: true })
 
   if (error) return supabaseErrorResponse(error, 'Falha ao carregar fornecedores')
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     telefone: f.telefone,
     email: f.email,
     status: f.status,
-    vinculo_tipo: 'fornecedor',
+    vinculo_tipos: ['fornecedor'],
     fornecedor_dados: f.fornecedorDados,
     unidade_id: null,
   })
@@ -78,7 +78,7 @@ export async function PUT(request: NextRequest) {
   const f = validated.value
 
   const supabase = getAppSupabase()
-  // Escopo a vinculo_tipo='fornecedor': este endpoint não edita clientes. O
+  // Escopo por vinculo_tipos.contains('fornecedor'): este endpoint não edita clientes. O
   // .select('id') confirma que algo foi alterado — id de não-fornecedor → 404
   // (em vez de 200 silencioso).
   const { data: updated, error } = await supabase
@@ -92,7 +92,7 @@ export async function PUT(request: NextRequest) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .eq('vinculo_tipo', 'fornecedor')
+    .contains('vinculo_tipos', ['fornecedor'])
     .select('id')
 
   if (error) return supabaseErrorResponse(error, 'Falha ao atualizar fornecedor')
@@ -115,12 +115,12 @@ export async function DELETE(request: NextRequest) {
 
   const supabase = getAppSupabase()
   // Soft-delete (status Inativo) — não apaga a linha de pacientes. Escopo a
-  // vinculo_tipo='fornecedor'; id de não-fornecedor → 404 (sem 200 silencioso).
+  // vinculo_tipos contém 'fornecedor'; id de não-fornecedor → 404 (sem 200 silencioso).
   const { data: deleted, error } = await supabase
     .from('pacientes')
     .update({ status: 'Inativo', updated_at: new Date().toISOString() })
     .eq('id', id)
-    .eq('vinculo_tipo', 'fornecedor')
+    .contains('vinculo_tipos', ['fornecedor'])
     .select('id')
 
   if (error) return supabaseErrorResponse(error, 'Falha ao excluir fornecedor')

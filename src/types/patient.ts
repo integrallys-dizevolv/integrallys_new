@@ -29,7 +29,9 @@ export interface Patient {
   endereco?: string
   condicoesMedicas?: string
   historicoRecente?: string
-  vinculoTipo?: string
+  vinculoTipos?: string[]
+  origemDetalhe?: string
+  precisaNf?: boolean
   addressDetails?: {
     zipCode?: string
     street?: string

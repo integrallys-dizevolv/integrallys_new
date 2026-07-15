@@ -1,7 +1,7 @@
 import type { FornecedorItem } from '@/types/fornecedor'
 
 // Lógica pura (testável) do cadastro de Fornecedores. Fornecedor = linha de
-// `pacientes` com vinculo_tipo='fornecedor' + `fornecedor_dados` (JSONB). Sem
+// `pacientes` cujo `vinculo_tipos` contém 'fornecedor' + `fornecedor_dados` (JSONB). Sem
 // tabela nova — espelha o padrão de Profissionais (079).
 
 function pick(value: unknown): string {

@@ -21,6 +21,15 @@ import type { MediaSelectionResult } from '@/features/media/types'
 
 const MANUAL_SERVICOS_TEXTO_PADRAO = 'Sem descricao de servicos registrada.'
 
+const VINCULO_OPCOES: Array<{ value: string; label: string }> = [
+    { value: 'cliente', label: 'Cliente' },
+    { value: 'fornecedor', label: 'Fornecedor' },
+    { value: 'prestador', label: 'Prestador' },
+    { value: 'profissional', label: 'Profissional' },
+    { value: 'usuario', label: 'Usuário' },
+    { value: 'outro', label: 'Outro' },
+]
+
 interface EditarPacienteModalProps {
     isOpen: boolean
     onClose: () => void
@@ -42,7 +51,9 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
         email: '',
         indicacao: '',
         status: 'Ativo',
-        vinculoTipo: 'cliente',
+        vinculoTipos: ['cliente'] as string[],
+        origemDetalhe: '',
+        precisaNf: false,
         photoUrl: '',
         photoFile: null as File | null,
         addressDetails: {
@@ -141,7 +152,9 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                 email: paciente.email || '',
                 indicacao: paciente.source || '',
                 status: paciente.activeStatus || 'Ativo',
-                vinculoTipo: paciente.vinculoTipo || 'cliente',
+                vinculoTipos: paciente.vinculoTipos && paciente.vinculoTipos.length > 0 ? paciente.vinculoTipos : ['cliente'],
+                origemDetalhe: paciente.origemDetalhe || '',
+                precisaNf: paciente.precisaNf === true,
                 photoUrl: paciente.photoUrl || '',
                 photoFile: null,
                 addressDetails: {
@@ -298,6 +311,15 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
         setFormData(prev => ({ ...prev, specialNeeds: { ...prev.specialNeeds, categories: updated } }));
     }
 
+    const toggleVinculo = (tipo: string) => {
+        setFormData(prev => {
+            const next = prev.vinculoTipos.includes(tipo)
+                ? prev.vinculoTipos.filter(t => t !== tipo)
+                : [...prev.vinculoTipos, tipo]
+            return { ...prev, vinculoTipos: next.length > 0 ? next : ['cliente'] }
+        })
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         const cepDigits = formData.addressDetails.zipCode.replace(/\D/g, '')
@@ -328,7 +350,9 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                 source: formData.indicacao || 'Nao informado',
                 activeStatus: formData.status as Patient['activeStatus'],
                 photoUrl: formData.photoUrl || undefined,
-                vinculoTipo: formData.vinculoTipo as Patient['vinculoTipo'],
+                vinculoTipos: formData.vinculoTipos,
+                origemDetalhe: formData.origemDetalhe || undefined,
+                precisaNf: formData.precisaNf,
                 age: patientAge != null ? `${patientAge} anos` : undefined,
                 address: [
                     formData.addressDetails.street,
@@ -358,7 +382,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                     birthDate: formData.responsible.birthDate,
                     age: formData.responsible.age,
                 } : undefined,
-                supplierData: formData.vinculoTipo === 'fornecedor' || formData.vinculoTipo === 'prestador'
+                supplierData: formData.vinculoTipos.includes('fornecedor') || formData.vinculoTipos.includes('prestador')
                     ? {
                         razaoSocial: formData.supplierData.razaoSocial,
                         cnpj: formData.supplierData.cnpj,
@@ -462,19 +486,32 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                             <SelectContent><SelectItem value="instagram">Instagram</SelectItem><SelectItem value="google">Google</SelectItem><SelectItem value="indicacao">Indicação</SelectItem><SelectItem value="outros">Outros</SelectItem></SelectContent>
                                         </Select>
                                     </div>
+                                    {(formData.indicacao === 'indicacao' || formData.indicacao === 'outros') && (
+                                        <div className="md:col-span-2 space-y-2">
+                                            <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">{formData.indicacao === 'indicacao' ? 'Quem indicou?' : 'Qual a origem?'}</Label>
+                                            <Input value={formData.origemDetalhe} onChange={(e) => setFormData({ ...formData, origemDetalhe: e.target.value })} className="h-11 rounded-xl border-app-border dark:border-app-border-dark" placeholder="Detalhe da origem" />
+                                        </div>
+                                    )}
                                     <div className="md:col-span-2 space-y-2">
-                                        <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Tipo de vínculo</Label>
-                                        <Select value={formData.vinculoTipo} onValueChange={(v) => setFormData({ ...formData, vinculoTipo: v })}>
-                                            <SelectTrigger className="h-11 rounded-xl border-app-border dark:border-app-border-dark"><SelectValue preferPlaceholder placeholder="Selecione" /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="cliente">Cliente</SelectItem>
-                                                <SelectItem value="fornecedor">Fornecedor</SelectItem>
-                                                <SelectItem value="prestador">Prestador de serviço</SelectItem>
-                                                <SelectItem value="profissional">Profissional</SelectItem>
-                                                <SelectItem value="usuario">Usuário</SelectItem>
-                                                <SelectItem value="outro">Outro</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                        <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Precisa de Nota Fiscal?</Label>
+                                        <label className="flex items-center gap-2 h-11 px-3 rounded-xl border border-app-border dark:border-app-border-dark cursor-pointer">
+                                            <input type="checkbox" checked={formData.precisaNf} onChange={(e) => setFormData({ ...formData, precisaNf: e.target.checked })} className="h-4 w-4 accent-[var(--app-primary)]" />
+                                            <span className="text-xs font-bold uppercase tracking-tight text-app-text-secondary dark:text-white/60">{formData.precisaNf ? 'Sim' : 'Não'}</span>
+                                        </label>
+                                    </div>
+                                    <div className="md:col-span-6 space-y-2">
+                                        <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Tipo de vínculo <span className="normal-case font-normal text-app-text-muted">(pode marcar mais de um)</span></Label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {VINCULO_OPCOES.map((opt) => {
+                                                const selected = formData.vinculoTipos.includes(opt.value)
+                                                return (
+                                                    <label key={opt.value} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border cursor-pointer transition-all ${selected ? 'bg-app-primary border-app-primary text-white shadow-md' : 'bg-white dark:bg-app-hover border-app-border dark:border-app-border-dark text-app-text-secondary dark:text-white/60 hover:border-app-primary/50'}`}>
+                                                        <input type="checkbox" checked={selected} onChange={() => toggleVinculo(opt.value)} className="hidden" />
+                                                        <span className="text-xs font-bold uppercase tracking-tight">{opt.label}</span>
+                                                    </label>
+                                                )
+                                            })}
+                                        </div>
                                     </div>
                                     <div className="md:col-span-2 space-y-2">
                                         <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Unidade *</Label>
@@ -517,7 +554,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                 </div>
                             </div>
 
-                            {(formData.vinculoTipo === 'fornecedor' || formData.vinculoTipo === 'prestador') && (
+                            {(formData.vinculoTipos.includes('fornecedor') || formData.vinculoTipos.includes('prestador')) && (
                                 <div className="mt-6 p-4 rounded-xl border border-app-border dark:border-app-border-dark bg-app-bg-secondary/40 dark:bg-app-hover">
                                     <h4 className="text-sm font-bold text-[var(--app-text-primary)] dark:text-white uppercase tracking-widest mb-4">
                                         Dados de fornecedor/prestador

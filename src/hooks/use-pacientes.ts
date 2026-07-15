@@ -19,7 +19,9 @@ export interface PacienteItem {
   inscricaoEstadual?: string
   gender?: string
   source?: string
-  vinculoTipo?: string
+  origemDetalhe?: string
+  vinculoTipos?: string[]
+  precisaNf?: boolean
   photoUrl?: string
   addressDetails?: {
     zipCode?: string
@@ -48,6 +50,9 @@ export interface PacienteInput {
   sexo?: string
   status?: string
   indicacao?: string
+  origemDetalhe?: string
+  vinculoTipos?: string[]
+  precisaNf?: boolean
   unidadeId?: string
   addressDetails?: {
     zipCode?: string

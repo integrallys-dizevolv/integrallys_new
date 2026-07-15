@@ -52,7 +52,7 @@ interface VisualizarPacienteModalProps {
   onCrmSaved?: () => void
 }
 
-const getVinculoLabel = (vinculo?: Patient['vinculoTipo']) => {
+const getVinculoLabel = (vinculo?: string) => {
   if (vinculo === 'fornecedor') return 'Fornecedor'
   if (vinculo === 'prestador') return 'Prestador'
   if (vinculo === 'profissional') return 'Profissional'
@@ -184,7 +184,12 @@ export function VisualizarPacienteModal({
               <div>
                 <p className="text-xs text-app-text-muted mb-2">Tipo de vínculo</p>
                 <Badge variant="outline" className="rounded-full px-3 py-1 border-app-border dark:border-app-border-dark">
-                  {getVinculoLabel(paciente?.vinculoTipo)}
+                  {(paciente?.vinculoTipos && paciente.vinculoTipos.length > 0
+                    ? paciente.vinculoTipos
+                    : ['cliente']
+                  )
+                    .map(getVinculoLabel)
+                    .join(', ')}
                 </Badge>
               </div>
 

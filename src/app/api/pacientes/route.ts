@@ -15,6 +15,22 @@ function pickString(...values: Array<unknown>) {
   return ''
 }
 
+const VINCULO_TIPOS_VALIDOS = ['cliente', 'fornecedor', 'prestador', 'profissional', 'usuario', 'outro']
+
+// Item 10: aceita a lista nova (vinculoTipos) e cai para a string única legada
+// (vinculoTipo) por compat. Valida contra os tipos conhecidos, dedupe, default cliente.
+function normalizeVinculoTipos(body: Record<string, unknown>): string[] {
+  const raw = Array.isArray(body.vinculoTipos)
+    ? body.vinculoTipos
+    : typeof body.vinculoTipo === 'string'
+      ? [body.vinculoTipo]
+      : []
+  const tipos = raw
+    .map((tipo) => (typeof tipo === 'string' ? tipo.trim().toLowerCase() : ''))
+    .filter((tipo) => VINCULO_TIPOS_VALIDOS.includes(tipo))
+  return Array.from(new Set(tipos.length > 0 ? tipos : ['cliente']))
+}
+
 function formatDate(value: unknown) {
   if (typeof value !== 'string' || !value) return ''
   const date = new Date(`${value}T00:00:00`)
@@ -48,7 +64,9 @@ function buildPacientePayload(body: Record<string, unknown>) {
     rg: pickString(body.rg) || null,
     inscricao_estadual: pickString(body.inscricaoEstadual) || null,
     origem: pickString(body.indicacao) || null,
-    vinculo_tipo: pickString(body.vinculoTipo) || 'cliente',
+    origem_detalhe: pickString(body.origemDetalhe) || null,
+    vinculo_tipos: normalizeVinculoTipos(body),
+    precisa_nf: body.precisaNf === true,
     photo_url: pickString(body.photoUrl) || null,
     cep: pickString(addressDetails.zipCode) || null,
     logradouro: pickString(addressDetails.street) || null,
@@ -70,7 +88,7 @@ async function fetchPatientContext() {
     supabase
       .from('pacientes')
       .select(
-        'id,usuario_id,unidade_id,nome,email,telefone,status,data_nascimento,cpf,sexo,rg,inscricao_estadual,origem,vinculo_tipo,photo_url,cep,logradouro,numero,complemento,bairro,cidade,estado,necessidades_especiais,responsavel,financeiro,fornecedor_dados,created_at,updated_at,' +
+        'id,usuario_id,unidade_id,nome,email,telefone,status,data_nascimento,cpf,sexo,rg,inscricao_estadual,origem,origem_detalhe,vinculo_tipos,precisa_nf,photo_url,cep,logradouro,numero,complemento,bairro,cidade,estado,necessidades_especiais,responsavel,financeiro,fornecedor_dados,created_at,updated_at,' +
           'crm:crm_paciente_estagios(estagio,observacoes,proxima_acao,data_proxima_acao,updated_at)',
       )
       .order('nome', { ascending: true }),
@@ -124,7 +142,11 @@ async function fetchPatientContext() {
         inscricaoEstadual: paciente.inscricao_estadual ? String(paciente.inscricao_estadual) : '',
         gender: paciente.sexo ? String(paciente.sexo) : '',
         source: paciente.origem ? String(paciente.origem) : '',
-        vinculoTipo: paciente.vinculo_tipo ? String(paciente.vinculo_tipo) : 'cliente',
+        origemDetalhe: paciente.origem_detalhe ? String(paciente.origem_detalhe) : '',
+        vinculoTipos: Array.isArray(paciente.vinculo_tipos)
+          ? paciente.vinculo_tipos.map(String)
+          : ['cliente'],
+        precisaNf: paciente.precisa_nf === true,
         photoUrl: paciente.photo_url ? String(paciente.photo_url) : '',
         addressDetails: {
           zipCode: paciente.cep ? String(paciente.cep) : '',
