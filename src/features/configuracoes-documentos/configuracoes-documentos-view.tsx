@@ -33,6 +33,7 @@ const TIPO_LABEL: Record<DocumentoTemplate['tipo'], string> = {
   encaminhamento: 'Encaminhamento',
   procedimento: 'Procedimento',
   dieta: 'Dieta',
+  contrato: 'Contrato',
 }
 
 export function ConfiguracoesDocumentosView() {

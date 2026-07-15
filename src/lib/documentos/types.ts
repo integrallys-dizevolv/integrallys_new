@@ -5,6 +5,7 @@ export type DocumentoTipo =
   | 'encaminhamento'
   | 'procedimento'
   | 'dieta'
+  | 'contrato'
 
 export interface Cabecalho {
   titulo: string
@@ -110,7 +111,18 @@ export interface DocumentoGerado {
 export interface ContextoVariaveis {
   cliente?: { nome?: string; cpf?: string }
   agendamento?: { data_hora?: string | Date | null }
-  profissional?: { nome?: string; conselho?: string | null }
+  profissional?: {
+    nome?: string
+    conselho?: string | null
+    cpf?: string | null
+    rg?: string | null
+    endereco?: string | null
+    estado_civil?: string | null
+  }
+  repasse?: {
+    percentual?: number | null
+    valor_fixo?: number | null
+  }
   clinica?: {
     nome?: string
     cidade_uf?: string

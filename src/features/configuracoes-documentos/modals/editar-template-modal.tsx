@@ -89,6 +89,7 @@ const TIPOS_DOCUMENTO: Array<{ value: DocumentoTipo; label: string }> = [
   { value: 'encaminhamento', label: 'Encaminhamento' },
   { value: 'procedimento', label: 'Procedimento' },
   { value: 'dieta', label: 'Dieta' },
+  { value: 'contrato', label: 'Contrato' },
 ]
 
 const SLUG_REGEX = /^[a-z0-9_]+$/
@@ -99,6 +100,12 @@ const VARIAVEIS_DISPONIVEIS = [
   '#AGENDA_DATA_HORA#',
   '#PROFISSIONAL_NOME#',
   '#PROFISSIONAL_CONSELHO#',
+  '#PROFISSIONAL_CPF#',
+  '#PROFISSIONAL_RG#',
+  '#PROFISSIONAL_ENDERECO#',
+  '#PROFISSIONAL_ESTADO_CIVIL#',
+  '#REPASSE_PERCENTUAL#',
+  '#REPASSE_VALOR_FIXO#',
   '#DATA_ATUAL#',
   '#CLINICA_NOME#',
   '#CLINICA_CIDADE_UF#',

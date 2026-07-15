@@ -7,6 +7,12 @@ export interface CarregarContextoInput {
   pacienteId?: string | null
   agendamentoId?: string | null
   profissionalId?: string | null
+  /**
+   * Carrega ctx.repasse (regra ativa do profissional) para as variáveis
+   * #REPASSE_*# — usado ao gerar um contrato de parceria (item 7c). Fica
+   * desligado por padrão para não onerar a geração de documentos clínicos.
+   */
+  incluirRepasse?: boolean
 }
 
 function pad2(n: number): string {
@@ -25,6 +31,7 @@ export async function carregarContexto({
   pacienteId,
   agendamentoId,
   profissionalId,
+  incluirRepasse = false,
 }: CarregarContextoInput): Promise<ContextoVariaveis> {
   const ctx: ContextoVariaveis = { agora: new Date() }
 
@@ -61,7 +68,7 @@ export async function carregarContexto({
     profissionalId
       ? supabase
           .from('usuarios')
-          .select('nome,conselho')
+          .select('nome,conselho,cpf,rg,endereco,estado_civil')
           .eq('id', profissionalId)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -105,11 +112,18 @@ export async function carregarContexto({
     if (!profissionalId && agendamentoRes.data.profissional_id && !profissionalRes.data) {
       const { data: prof } = await supabase
         .from('usuarios')
-        .select('nome,conselho')
+        .select('nome,conselho,cpf,rg,endereco,estado_civil')
         .eq('id', agendamentoRes.data.profissional_id)
         .maybeSingle()
       if (prof) {
-        ctx.profissional = { nome: prof.nome ?? '', conselho: prof.conselho ?? null }
+        ctx.profissional = {
+          nome: prof.nome ?? '',
+          conselho: prof.conselho ?? null,
+          cpf: prof.cpf ?? null,
+          rg: prof.rg ?? null,
+          endereco: prof.endereco ?? null,
+          estado_civil: prof.estado_civil ?? null,
+        }
       }
     }
   }
@@ -118,6 +132,30 @@ export async function carregarContexto({
     ctx.profissional = {
       nome: profissionalRes.data.nome ?? '',
       conselho: profissionalRes.data.conselho ?? null,
+      cpf: profissionalRes.data.cpf ?? null,
+      rg: profissionalRes.data.rg ?? null,
+      endereco: profissionalRes.data.endereco ?? null,
+      estado_civil: profissionalRes.data.estado_civil ?? null,
+    }
+  }
+
+  // Repasse (item 7c) — só quando explicitamente pedido (contrato de parceria).
+  // Pega a regra ativa mais recente do profissional. rg/endereco/estado_civil do
+  // profissional entram junto com a migration do item 7d (colunas ainda não existem).
+  if (incluirRepasse && profissionalId) {
+    const { data: regra } = await supabase
+      .from('regras_repasse')
+      .select('percentual,valor_fixo')
+      .eq('profissional_id', profissionalId)
+      .eq('ativo', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (regra) {
+      ctx.repasse = {
+        percentual: regra.percentual != null ? Number(regra.percentual) : null,
+        valor_fixo: regra.valor_fixo != null ? Number(regra.valor_fixo) : null,
+      }
     }
   }
 

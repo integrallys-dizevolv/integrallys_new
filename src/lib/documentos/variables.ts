@@ -32,6 +32,15 @@ function buildTokenMap(ctx: ContextoVariaveis): Record<string, string> {
     '#AGENDA_DATA_HORA#': ahDate && !Number.isNaN(ahDate.getTime()) ? formatDateHour(ahDate) : '',
     '#PROFISSIONAL_NOME#': ctx.profissional?.nome ?? '',
     '#PROFISSIONAL_CONSELHO#': ctx.profissional?.conselho ?? '',
+    '#PROFISSIONAL_CPF#': formatCpf(ctx.profissional?.cpf ?? undefined),
+    '#PROFISSIONAL_RG#': ctx.profissional?.rg ?? '',
+    '#PROFISSIONAL_ENDERECO#': ctx.profissional?.endereco ?? '',
+    '#PROFISSIONAL_ESTADO_CIVIL#': ctx.profissional?.estado_civil ?? '',
+    '#REPASSE_PERCENTUAL#': ctx.repasse?.percentual != null ? `${ctx.repasse.percentual}%` : '',
+    '#REPASSE_VALOR_FIXO#':
+      ctx.repasse?.valor_fixo != null
+        ? ctx.repasse.valor_fixo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        : '',
     '#DATA_ATUAL#': formatDate(agora),
     '#CLINICA_NOME#': ctx.clinica?.nome ?? '',
     '#CLINICA_CIDADE_UF#': ctx.clinica?.cidade_uf ?? '',
