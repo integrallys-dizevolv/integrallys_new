@@ -11,6 +11,9 @@ export interface UnidadeItem {
   status: string
   cnpj?: string
   endereco?: string
+  bairro?: string
+  cep?: string
+  estado?: string
   gestor?: string
 }
 
@@ -20,6 +23,9 @@ export interface UnidadeInput {
   cidade: string
   cnpj?: string
   endereco?: string
+  bairro?: string
+  cep?: string
+  estado?: string
   gestor?: string
   status?: string
 }

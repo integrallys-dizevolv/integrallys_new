@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { AlertTriangle, Building2, Edit2, Eye, MoreHorizontal, Plus, Search, Trash2 } from 'lucide-react'
 import { useUnidades, type UnidadeItem } from '@/hooks/use-unidades'
+import { formatEnderecoUnidade } from '@/lib/format-endereco'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -39,7 +40,10 @@ type FormState = {
   nome: string
   cnpj: string
   endereco: string
+  bairro: string
+  cep: string
   cidade: string
+  estado: string
   gestor: string
   status: string
 }
@@ -48,7 +52,10 @@ const initialFormState: FormState = {
   nome: '',
   cnpj: '',
   endereco: '',
+  bairro: '',
+  cep: '',
   cidade: '',
+  estado: '',
   gestor: '',
   status: 'Ativa',
 }
@@ -80,8 +87,11 @@ export function UnidadesView() {
       setFormData({
         nome: unit.nome,
         cnpj: unit.cnpj ?? '',
-        endereco: unit.endereco ?? unit.cidade,
+        endereco: unit.endereco ?? '',
+        bairro: unit.bairro ?? '',
+        cep: unit.cep ?? '',
         cidade: unit.cidade,
+        estado: unit.estado ?? '',
         gestor: unit.gestor ?? '',
         status: unit.status,
       })
@@ -110,7 +120,10 @@ export function UnidadesView() {
           nome: formData.nome,
           cnpj: formData.cnpj || undefined,
           endereco: formData.endereco || undefined,
+          bairro: formData.bairro || undefined,
+          cep: formData.cep || undefined,
           cidade: formData.cidade,
+          estado: formData.estado || undefined,
           gestor: formData.gestor || undefined,
           status: formData.status,
         })
@@ -120,7 +133,10 @@ export function UnidadesView() {
           nome: formData.nome,
           cnpj: formData.cnpj || undefined,
           endereco: formData.endereco || undefined,
+          bairro: formData.bairro || undefined,
+          cep: formData.cep || undefined,
           cidade: formData.cidade,
+          estado: formData.estado || undefined,
           gestor: formData.gestor || undefined,
           status: formData.status,
         })
@@ -217,7 +233,7 @@ export function UnidadesView() {
                         </div>
                       </TableCell>
                       <TableCell className="px-6 py-4">
-                        <span className="line-clamp-1 text-sm text-[#6a7282] dark:text-app-text-muted">{unit.endereco ?? unit.cidade}</span>
+                        <span className="line-clamp-1 text-sm text-[#6a7282] dark:text-app-text-muted">{formatEnderecoUnidade(unit) || '--'}</span>
                       </TableCell>
                       <TableCell className="px-6 py-4 text-sm text-[#6a7282] dark:text-app-text-muted">
                         {unit.gestor ?? '--'}
@@ -339,12 +355,32 @@ export function UnidadesView() {
                   />
                 </div>
                 <div className="space-y-3 md:col-span-2">
-                  <Label>Endereço completo</Label>
+                  <Label>Endereço (rua e número)</Label>
                   <Input
                     value={formData.endereco}
                     disabled={modalType === 'view'}
                     onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                    placeholder="Rua, Número, Bairro, Cidade - UF"
+                    placeholder="Ex: Av. Paulista, 1000"
+                    className="h-12 rounded-[12px]"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label>Bairro</Label>
+                  <Input
+                    value={formData.bairro}
+                    disabled={modalType === 'view'}
+                    onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
+                    placeholder="Bairro da unidade"
+                    className="h-12 rounded-[12px]"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label>CEP</Label>
+                  <Input
+                    value={formData.cep}
+                    disabled={modalType === 'view'}
+                    onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                    placeholder="00000-000"
                     className="h-12 rounded-[12px]"
                   />
                 </div>
@@ -355,6 +391,17 @@ export function UnidadesView() {
                     disabled={modalType === 'view'}
                     onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
                     placeholder="Cidade da unidade"
+                    className="h-12 rounded-[12px]"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label>Estado (UF)</Label>
+                  <Input
+                    value={formData.estado}
+                    disabled={modalType === 'view'}
+                    onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                    placeholder="Ex: SP"
+                    maxLength={2}
                     className="h-12 rounded-[12px]"
                   />
                 </div>

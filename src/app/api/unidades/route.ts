@@ -10,7 +10,7 @@ async function listUnidades(request: NextRequest, session: Awaited<ReturnType<ty
   const supabase = getAppSupabase()
   const { data, error } = await supabase
     .from('unidades')
-    .select('id,nome,cidade,status,cnpj,endereco,gestor_nome')
+    .select('id,nome,cidade,status,cnpj,endereco,bairro,cep,estado,gestor_nome')
     .order('nome', { ascending: true })
 
   if (error) {
@@ -34,6 +34,9 @@ function validateUnidade(body: UnidadeBody) {
       cidade,
       cnpj: body.cnpj ? String(body.cnpj).trim() : null,
       endereco: body.endereco ? String(body.endereco).trim() : null,
+      bairro: body.bairro ? String(body.bairro).trim() : null,
+      cep: body.cep ? String(body.cep).trim() : null,
+      estado: body.estado ? String(body.estado).trim() : null,
       gestor_nome: body.gestor ? String(body.gestor).trim() : null,
       status: body.status ? String(body.status).trim() : 'Ativa',
     },
