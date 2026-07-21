@@ -1,7 +1,7 @@
 'use client'
 
-import { Edit2, MoreHorizontal, Plus, Search, Stethoscope, Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Edit2, FileText, MoreHorizontal, Plus, Search, Stethoscope, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { AcessoNegadoState } from '@/components/shared/acesso-negado-state'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -32,12 +32,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { useApi } from '@/hooks/use-api'
 import { useUnidades } from '@/hooks/use-unidades'
+import type { DocumentoTemplate } from '@/lib/documentos'
 import type { ProfissionalInput, ProfissionalItem } from '@/types/profissional'
 import { useProfissionais } from './hooks/use-profissionais'
+import { GerarContratoModal } from './modals/gerar-contrato-modal'
 import { ProfissionalModal } from './modals/profissional-modal'
 
-type ModalType = 'create' | 'edit' | 'delete' | null
+type ModalType = 'create' | 'edit' | 'delete' | 'contrato' | null
 
 const VINCULO_LABEL: Record<'interno' | 'parceiro', string> = {
   interno: 'Interno',
@@ -45,6 +49,7 @@ const VINCULO_LABEL: Record<'interno' | 'parceiro', string> = {
 }
 
 export function ProfissionaisView() {
+  const api = useApi()
   const {
     data,
     isLoading,
@@ -59,6 +64,26 @@ export function ProfissionaisView() {
   const [modalType, setModalType] = useState<ModalType>(null)
   const [selected, setSelected] = useState<ProfissionalItem | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [contratoTemplates, setContratoTemplates] = useState<DocumentoTemplate[]>([])
+  const [contratoAutoGenerate, setContratoAutoGenerate] = useState(false)
+
+  // Prefetch de modelos tipo contrato — habilita/desabilita a ação "Gerar contrato".
+  useEffect(() => {
+    let mounted = true
+    void (async () => {
+      try {
+        const res = await api.get<{ data: DocumentoTemplate[] }>('/api/documentos/templates')
+        if (!mounted) return
+        setContratoTemplates((res.data ?? []).filter((t) => t.tipo === 'contrato' && t.ativo))
+      } catch {
+        // Sem permissão de documentacao ou falha de rede: ação fica desabilitada.
+        if (mounted) setContratoTemplates([])
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [api])
 
   const filtered = useMemo(() => {
     const term = searchFilter.trim().toLowerCase()
@@ -94,9 +119,17 @@ export function ProfissionaisView() {
     setModalType('delete')
   }
 
+  const handleOpenGerarContrato = (item: ProfissionalItem) => {
+    if (item.tipoVinculo !== 'parceiro') return
+    setSelected(item)
+    setContratoAutoGenerate(contratoTemplates.length === 1)
+    setModalType('contrato')
+  }
+
   const handleCloseModal = () => {
     setModalType(null)
     setSelected(null)
+    setContratoAutoGenerate(false)
   }
 
   const handleSave = async (payload: ProfissionalInput) => {
@@ -295,7 +328,7 @@ export function ProfissionaisView() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent
                               align="end"
-                              className="w-48 rounded-xl border-app-border shadow-lg dark:border-app-border-dark"
+                              className="w-56 rounded-xl border-app-border shadow-lg dark:border-app-border-dark"
                             >
                               <DropdownMenuItem
                                 onClick={() => handleOpenEdit(item)}
@@ -304,6 +337,37 @@ export function ProfissionaisView() {
                                 <Edit2 className="mr-3 h-4 w-4 text-app-text-muted" />
                                 Editar
                               </DropdownMenuItem>
+                              {item.tipoVinculo === 'parceiro' &&
+                                (contratoTemplates.length === 0 ? (
+                                  <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div>
+                                          <DropdownMenuItem
+                                            disabled
+                                            className="rounded-lg py-2.5"
+                                            onSelect={(e) => e.preventDefault()}
+                                          >
+                                            <FileText className="mr-3 h-4 w-4 text-app-text-muted" />
+                                            Gerar contrato
+                                          </DropdownMenuItem>
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="left" className="max-w-xs text-xs">
+                                        Nenhum modelo de contrato cadastrado — crie um em
+                                        Configurações → Templates de Documentos
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                ) : (
+                                  <DropdownMenuItem
+                                    onClick={() => handleOpenGerarContrato(item)}
+                                    className="rounded-lg py-2.5"
+                                  >
+                                    <FileText className="mr-3 h-4 w-4 text-app-text-muted" />
+                                    Gerar contrato
+                                  </DropdownMenuItem>
+                                ))}
                               <DropdownMenuItem
                                 onClick={() => handleOpenDelete(item)}
                                 className="rounded-lg py-2.5 text-[var(--app-danger-text)]"
@@ -332,6 +396,16 @@ export function ProfissionaisView() {
         initial={modalType === 'edit' ? selected : null}
         onClose={handleCloseModal}
         onSave={handleSave}
+      />
+
+      <GerarContratoModal
+        open={modalType === 'contrato'}
+        onOpenChange={(open) => {
+          if (!open) handleCloseModal()
+        }}
+        profissional={selected}
+        templates={contratoTemplates}
+        autoGenerate={contratoAutoGenerate}
       />
 
       <Dialog open={modalType === 'delete'} onOpenChange={(open) => !open && handleCloseModal()}>
