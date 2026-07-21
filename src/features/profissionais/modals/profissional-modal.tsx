@@ -253,8 +253,7 @@ export function ProfissionalModal({
     setIsSubmitting(true)
     try {
       const parsed = Number(repasseValor)
-      const repasseNumber =
-        repasseValor.trim() === '' || !Number.isFinite(parsed) ? null : parsed
+      const repasseNumber = repasseValor.trim() === '' || !Number.isFinite(parsed) ? null : parsed
       const isParceiro = basic.tipoVinculo === 'parceiro'
       await onSave({
         id: initial?.id,
@@ -600,15 +599,50 @@ export function ProfissionalModal({
                   <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
                     {repasseTipo === 'percentual' ? 'Percentual (%)' : 'Valor fixo (R$)'}
                   </Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    placeholder={repasseTipo === 'percentual' ? 'Ex.: 30' : 'Ex.: 150,00'}
-                    value={repasseValor}
-                    onChange={(e) => setRepasseValor(e.target.value)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0"
+                      placeholder={repasseTipo === 'percentual' ? 'Ex.: 30' : 'Ex.: 150,00'}
+                      value={repasseValor}
+                      onChange={(e) => setRepasseValor(e.target.value)}
+                      className="flex-1"
+                    />
+                    {(() => {
+                      // Opção 1 (item 7): rótulo computado, sem coluna no banco.
+                      // 100% = Total; qualquer outro % = Parcial; valor fixo = rótulo neutro.
+                      if (repasseTipo === 'valor_fixo') {
+                        if (repasseValor.trim() === '') return null
+                        return (
+                          <span className="shrink-0 rounded-full border border-app-border bg-app-bg-secondary px-2.5 py-1 text-xs font-medium text-app-text-secondary dark:border-app-border-dark dark:text-white/70">
+                            Valor fixo por atendimento
+                          </span>
+                        )
+                      }
+                      const parsed = Number(repasseValor)
+                      if (repasseValor.trim() === '' || !Number.isFinite(parsed)) return null
+                      const isTotal = parsed === 100
+                      return (
+                        <span
+                          className={cn(
+                            'shrink-0 rounded-full px-2.5 py-1 text-xs font-medium',
+                            isTotal
+                              ? 'border border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                              : 'border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200',
+                          )}
+                        >
+                          {isTotal ? 'Total' : 'Parcial'}
+                        </span>
+                      )
+                    })()}
+                  </div>
+                  {repasseTipo === 'percentual' && (
+                    <p className="text-xs text-app-text-muted">
+                      100% = repasse total; qualquer outro percentual = repasse parcial.
+                    </p>
+                  )}
                 </div>
               </div>
             </section>
