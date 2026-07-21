@@ -1,11 +1,9 @@
 'use client'
 
+import { Edit, Eye, FileText, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Edit, Eye, FileText, Plus, Trash2 } from 'lucide-react'
-import type { DocumentoTemplate } from '@/lib/documentos'
-import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
+import { PageHeader } from '@/components/shared/page-header'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,7 +11,7 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
-import { PageHeader } from '@/components/shared/page-header'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -22,6 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
+import type { DocumentoTemplate } from '@/lib/documentos'
 import { useDocumentTemplates } from './hooks/use-document-templates'
 import { EditarTemplateModal } from './modals/editar-template-modal'
 import { VisualizarTemplateModal } from './modals/visualizar-template-modal'
@@ -119,7 +119,9 @@ export function ConfiguracoesDocumentosView() {
       <div className="rounded-[24px] border border-app-border bg-app-card p-6 dark:border-app-border-dark dark:bg-app-card-dark shadow-sm">
         {error && <p className="mb-4 text-sm text-[var(--app-danger-text)]">{error}</p>}
         {isLoading && (
-          <p className="text-sm text-app-text-secondary dark:text-white/60">Carregando templates...</p>
+          <p className="text-sm text-app-text-secondary dark:text-white/60">
+            Carregando templates...
+          </p>
         )}
 
         {!isLoading && data.length === 0 && !error && (
@@ -268,6 +270,7 @@ export function ConfiguracoesDocumentosView() {
               nome: updates.nome,
               tipo: updates.tipo,
               conteudo: updates.conteudo,
+              unidadeId: updates.unidadeId,
               ativo: updates.ativo,
               editavel_pelo_especialista: updates.editavel_pelo_especialista,
               disponivel_portal_paciente: updates.disponivel_portal_paciente,

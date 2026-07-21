@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useApi } from '@/hooks/use-api'
-import type { DocumentoTemplate, TemplateConteudo, DocumentoTipo } from '@/lib/documentos'
+import type { DocumentoTemplate, DocumentoTipo, TemplateConteudo } from '@/lib/documentos'
 
 interface ListResponse {
   data: DocumentoTemplate[]
@@ -81,7 +81,9 @@ export function useDocumentTemplates() {
         }
         const payload = (await response.json()) as ItemResponse
         setData((current) =>
-          current.map((item) => (item.id === payload.data.id ? { ...item, ...payload.data } : item)),
+          current.map((item) =>
+            item.id === payload.data.id ? { ...item, ...payload.data } : item,
+          ),
         )
         return payload.data
       }),
@@ -94,6 +96,8 @@ export function useDocumentTemplates() {
       nome: string
       tipo: DocumentoTipo
       conteudo: TemplateConteudo
+      /** Obrigatório pra master/admin (sem unidade no JWT); escopado ignora no backend. */
+      unidadeId?: string
       ativo?: boolean
       editavel_pelo_especialista?: boolean
       disponivel_portal_paciente?: boolean
@@ -122,7 +126,9 @@ export function useDocumentTemplates() {
         const payload = (await response.json()) as { data: { id: string; desativado?: boolean } }
         if (payload.data.desativado) {
           // Backend desativou em vez de excluir (há docs emitidos dependentes)
-          setData((current) => current.map((item) => (item.id === id ? { ...item, ativo: false } : item)))
+          setData((current) =>
+            current.map((item) => (item.id === id ? { ...item, ativo: false } : item)),
+          )
           return { removido: false, desativado: true }
         }
         setData((current) => current.filter((item) => item.id !== id))

@@ -1,7 +1,47 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
+
+const TIPOS_VALIDOS = new Set([
+  'formulario',
+  'declaracao',
+  'laudo',
+  'encaminhamento',
+  'procedimento',
+  'dieta',
+  'contrato',
+])
+const SLUG_REGEX = /^[a-z0-9_]+$/
+
+const TEMPLATE_SELECT =
+  'id,unidade_id,slug,nome,tipo,conteudo,ativo,editavel_pelo_especialista,disponivel_portal_paciente,created_at,updated_at'
+
+/**
+ * Resolve a unidade de escrita:
+ * - Chamador escopado: sempre a unidade do JWT (ignora body — anti IDOR).
+ * - master/admin (unidade null): exige `body.unidadeId` no POST; em
+ *   PATCH/DELETE o filtro de unidade fica opcional (localiza só por id).
+ */
+function resolveUnidadeEscopo(
+  scopedUnidadeId: string | null,
+  bodyUnidadeId: unknown,
+): { unidadeId: string } | { error: ReturnType<typeof serverErrorResponse> } {
+  if (scopedUnidadeId) {
+    return { unidadeId: scopedUnidadeId }
+  }
+  const fromBody = typeof bodyUnidadeId === 'string' ? bodyUnidadeId.trim() : ''
+  if (!fromBody) {
+    return {
+      error: serverErrorResponse(
+        'unidadeId obrigatório (master/admin precisam informar a unidade do template)',
+        'INVALID_UNIDADE_ID',
+        400,
+      ),
+    }
+  }
+  return { unidadeId: fromBody }
+}
 
 export async function GET(request: NextRequest) {
   const session = await getRequestAuth(request)
@@ -9,10 +49,12 @@ export async function GET(request: NextRequest) {
   const denied = await requirePermission(session.userId, 'documentacao', 'read')
   if (denied) return denied
 
+  // master/admin: getScopedUnitId retorna unidadeId null de propósito ("sem
+  // escopo, vê tudo"). Não tratar como NO_UNIT — só filtrar por unidade quando
+  // o chamador for escopado (gestor/recepção/especialista).
   const scopedUnit = await getScopedUnitId(session)
-  const unidadeId = scopedUnit.error ? null : scopedUnit.unidadeId
-  if (!unidadeId) {
-    return serverErrorResponse('Usuário sem unidade vinculada', 'NO_UNIT', 400)
+  if (scopedUnit.error) {
+    return supabaseErrorResponse(scopedUnit.error, 'Falha ao identificar unidade do usuário')
   }
 
   const url = new URL(request.url)
@@ -21,11 +63,12 @@ export async function GET(request: NextRequest) {
   const supabase = getAppSupabase()
   let query = supabase
     .from('documento_templates')
-    .select(
-      'id,slug,nome,tipo,conteudo,ativo,editavel_pelo_especialista,disponivel_portal_paciente,created_at,updated_at',
-    )
-    .eq('unidade_id', unidadeId)
+    .select(TEMPLATE_SELECT)
     .order('nome', { ascending: true })
+
+  if (scopedUnit.unidadeId) {
+    query = query.eq('unidade_id', scopedUnit.unidadeId)
+  }
 
   if (!incluirInativos) query = query.eq('ativo', true)
 
@@ -66,19 +109,20 @@ export async function PATCH(request: NextRequest) {
   }
 
   const scopedUnit = await getScopedUnitId(session)
-  const unidadeId = scopedUnit.error ? null : scopedUnit.unidadeId
-  if (!unidadeId) {
-    return serverErrorResponse('Usuário sem unidade vinculada', 'NO_UNIT', 400)
+  if (scopedUnit.error) {
+    return supabaseErrorResponse(scopedUnit.error, 'Falha ao identificar unidade do usuário')
   }
 
   const supabase = getAppSupabase()
-  const { data, error } = await supabase
-    .from('documento_templates')
-    .update(updates)
-    .eq('id', id)
-    .eq('unidade_id', unidadeId)
+  // Escopado: id + unidade do JWT. master/admin: só id (sem NO_UNIT).
+  let query = supabase.from('documento_templates').update(updates).eq('id', id)
+  if (scopedUnit.unidadeId) {
+    query = query.eq('unidade_id', scopedUnit.unidadeId)
+  }
+
+  const { data, error } = await query
     .select(
-      'id,slug,nome,tipo,conteudo,ativo,editavel_pelo_especialista,disponivel_portal_paciente,updated_at',
+      'id,unidade_id,slug,nome,tipo,conteudo,ativo,editavel_pelo_especialista,disponivel_portal_paciente,updated_at',
     )
     .maybeSingle()
 
@@ -87,9 +131,6 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({ data, meta: session })
 }
-
-const TIPOS_VALIDOS = new Set(['formulario', 'declaracao', 'laudo', 'encaminhamento', 'procedimento', 'dieta'])
-const SLUG_REGEX = /^[a-z0-9_]+$/
 
 export async function POST(request: NextRequest) {
   const session = await getRequestAuth(request)
@@ -108,17 +149,25 @@ export async function POST(request: NextRequest) {
   const conteudo = body.conteudo && typeof body.conteudo === 'object' ? body.conteudo : null
 
   if (!slug || !SLUG_REGEX.test(slug)) {
-    return serverErrorResponse('slug inválido (use apenas minúsculas, números e _)', 'INVALID_SLUG', 400)
+    return serverErrorResponse(
+      'slug inválido (use apenas minúsculas, números e _)',
+      'INVALID_SLUG',
+      400,
+    )
   }
   if (!nome) return serverErrorResponse('nome é obrigatório', 'INVALID_NAME', 400)
   if (!TIPOS_VALIDOS.has(tipo)) return serverErrorResponse('tipo inválido', 'INVALID_TIPO', 400)
   if (!conteudo) return serverErrorResponse('conteudo é obrigatório', 'INVALID_CONTEUDO', 400)
 
   const scopedUnit = await getScopedUnitId(session)
-  const unidadeId = scopedUnit.error ? null : scopedUnit.unidadeId
-  if (!unidadeId) {
-    return serverErrorResponse('Usuário sem unidade vinculada', 'NO_UNIT', 400)
+  if (scopedUnit.error) {
+    return supabaseErrorResponse(scopedUnit.error, 'Falha ao identificar unidade do usuário')
   }
+
+  // Escopado → JWT; master/admin → body.unidadeId (body ignorado se escopado).
+  const resolved = resolveUnidadeEscopo(scopedUnit.unidadeId, body.unidadeId)
+  if ('error' in resolved) return resolved.error
+  const { unidadeId } = resolved
 
   const supabase = getAppSupabase()
   const { data, error } = await supabase
@@ -131,13 +180,15 @@ export async function POST(request: NextRequest) {
       conteudo,
       ativo: typeof body.ativo === 'boolean' ? body.ativo : true,
       editavel_pelo_especialista:
-        typeof body.editavel_pelo_especialista === 'boolean' ? body.editavel_pelo_especialista : true,
+        typeof body.editavel_pelo_especialista === 'boolean'
+          ? body.editavel_pelo_especialista
+          : true,
       disponivel_portal_paciente:
-        typeof body.disponivel_portal_paciente === 'boolean' ? body.disponivel_portal_paciente : false,
+        typeof body.disponivel_portal_paciente === 'boolean'
+          ? body.disponivel_portal_paciente
+          : false,
     })
-    .select(
-      'id,slug,nome,tipo,conteudo,ativo,editavel_pelo_especialista,disponivel_portal_paciente,created_at,updated_at',
-    )
+    .select(TEMPLATE_SELECT)
     .single()
 
   if (error) {
@@ -161,15 +212,16 @@ export async function DELETE(request: NextRequest) {
   if (!id) return serverErrorResponse('id obrigatório', 'INVALID_ID', 400)
 
   const scopedUnit = await getScopedUnitId(session)
-  const unidadeId = scopedUnit.error ? null : scopedUnit.unidadeId
-  if (!unidadeId) {
-    return serverErrorResponse('Usuário sem unidade vinculada', 'NO_UNIT', 400)
+  if (scopedUnit.error) {
+    return supabaseErrorResponse(scopedUnit.error, 'Falha ao identificar unidade do usuário')
   }
 
   const supabase = getAppSupabase()
 
   // Se houver documentos gerados usando este template, preservamos histórico
   // desativando em vez de excluir — evita violação de FK em documentos_gerados.
+  // Contagem é global por template_id (uso real do modelo); o filtro de unidade
+  // aplica-se só no update/delete do registro do template.
   const { count, error: countError } = await supabase
     .from('documentos_gerados')
     .select('id', { count: 'exact', head: true })
@@ -180,24 +232,28 @@ export async function DELETE(request: NextRequest) {
   }
 
   if ((count ?? 0) > 0) {
-    const { error: updateError } = await supabase
-      .from('documento_templates')
-      .update({ ativo: false })
-      .eq('id', id)
-      .eq('unidade_id', unidadeId)
+    let deactivate = supabase.from('documento_templates').update({ ativo: false }).eq('id', id)
+    if (scopedUnit.unidadeId) {
+      deactivate = deactivate.eq('unidade_id', scopedUnit.unidadeId)
+    }
+    const { error: updateError } = await deactivate
     if (updateError) {
       return supabaseErrorResponse(updateError, 'Falha ao desativar template')
     }
     return NextResponse.json({
-      data: { id, desativado: true, motivo: 'Template em uso — foi desativado em vez de excluído.' },
+      data: {
+        id,
+        desativado: true,
+        motivo: 'Template em uso — foi desativado em vez de excluído.',
+      },
     })
   }
 
-  const { error: deleteError } = await supabase
-    .from('documento_templates')
-    .delete()
-    .eq('id', id)
-    .eq('unidade_id', unidadeId)
+  let del = supabase.from('documento_templates').delete().eq('id', id)
+  if (scopedUnit.unidadeId) {
+    del = del.eq('unidade_id', scopedUnit.unidadeId)
+  }
+  const { error: deleteError } = await del
 
   if (deleteError) return supabaseErrorResponse(deleteError, 'Falha ao excluir template')
 

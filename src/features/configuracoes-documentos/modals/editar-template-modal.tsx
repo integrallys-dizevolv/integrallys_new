@@ -1,24 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
-import type {
-  DocumentoTemplate,
-  DocumentoTipo,
-  ItemChecklist,
-  Secao,
-  TemplateConteudo,
-} from '@/lib/documentos'
+import { useEffect, useState } from 'react'
 import { ModalHeader } from '@/components/shared/modal-header'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -26,6 +13,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { useAuth } from '@/hooks/use-auth'
+import { useUnidades } from '@/hooks/use-unidades'
+import type {
+  DocumentoTemplate,
+  DocumentoTipo,
+  ItemChecklist,
+  Secao,
+  TemplateConteudo,
+} from '@/lib/documentos'
 
 const TIPOS_SECAO: Array<{ value: Secao['tipo']; label: string }> = [
   { value: 'paragrafo', label: 'Parágrafo (texto corrido)' },
@@ -71,6 +69,8 @@ interface TemplateUpdates {
   conteudo: TemplateConteudo
   slug?: string
   tipo?: DocumentoTipo
+  /** Só enviado na criação por master/admin (sem unidade implícita no JWT). */
+  unidadeId?: string
 }
 
 interface Props {
@@ -114,11 +114,23 @@ const VARIAVEIS_DISPONIVEIS = [
   '#CLINICA_TELEFONE#',
 ]
 
-export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit', onSave }: Props) {
+export function EditarTemplateModal({
+  open,
+  onOpenChange,
+  template,
+  mode = 'edit',
+  onSave,
+}: Props) {
   const isCreate = mode === 'create'
+  const user = useAuth((s) => s.user)
+  const { data: unidades } = useUnidades()
+  // master/admin não têm unidade no JWT — precisam escolher no formulário de criação.
+  const precisaEscolherUnidade = isCreate && (user?.role === 'master' || user?.role === 'admin')
+
   const [nome, setNome] = useState('')
   const [slug, setSlug] = useState('')
   const [tipo, setTipo] = useState<DocumentoTipo>('formulario')
+  const [unidadeId, setUnidadeId] = useState('')
   const [ativo, setAtivo] = useState(true)
   const [editavelEspecialista, setEditavelEspecialista] = useState(true)
   const [disponivelPortal, setDisponivelPortal] = useState(false)
@@ -135,6 +147,7 @@ export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit
       setNome(template.nome)
       setSlug(template.slug)
       setTipo(template.tipo)
+      setUnidadeId(template.unidade_id ?? '')
       setAtivo(template.ativo)
       setEditavelEspecialista(template.editavel_pelo_especialista)
       setDisponivelPortal(template.disponivel_portal_paciente)
@@ -143,6 +156,7 @@ export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit
       setNome('')
       setSlug('')
       setTipo('formulario')
+      setUnidadeId('')
       setAtivo(true)
       setEditavelEspecialista(true)
       setDisponivelPortal(false)
@@ -151,11 +165,13 @@ export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit
   }, [open, template, isCreate])
 
   const slugValido = !isCreate || (slug.length > 0 && SLUG_REGEX.test(slug))
+  const unidadeValida = !precisaEscolherUnidade || unidadeId.length > 0
 
   const handleSave = async () => {
     if (isSaving) return
     if (!nome.trim()) return
     if (isCreate && !slugValido) return
+    if (!unidadeValida) return
     setIsSaving(true)
     try {
       await onSave({
@@ -164,7 +180,13 @@ export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit
         editavel_pelo_especialista: editavelEspecialista,
         disponivel_portal_paciente: disponivelPortal,
         conteudo,
-        ...(isCreate ? { slug: slug.trim().toLowerCase(), tipo } : {}),
+        ...(isCreate
+          ? {
+              slug: slug.trim().toLowerCase(),
+              tipo,
+              ...(precisaEscolherUnidade ? { unidadeId } : {}),
+            }
+          : {}),
       })
       onOpenChange(false)
     } finally {
@@ -227,12 +249,15 @@ export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit
                   </label>
                   <Input
                     value={slug}
-                    onChange={(event) => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                    onChange={(event) =>
+                      setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))
+                    }
                     placeholder="ex.: atestado_medico"
                     className="h-11 bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl font-mono text-sm"
                   />
                   <p className="text-xs text-app-text-muted">
-                    Identificador técnico único. Apenas minúsculas, números e _. Não pode ser alterado depois.
+                    Identificador técnico único. Apenas minúsculas, números e _. Não pode ser
+                    alterado depois.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -250,6 +275,30 @@ export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit
                     </SelectContent>
                   </Select>
                 </div>
+                {precisaEscolherUnidade && (
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-normal dark:text-white/70">
+                      Unidade <span className="text-[var(--app-danger-text)]">*</span>
+                    </label>
+                    <Select value={unidadeId} onValueChange={setUnidadeId}>
+                      <SelectTrigger className="h-11 bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-xl">
+                        <SelectValue placeholder="Selecione a unidade do template…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {unidades.map((unidade) => (
+                          <SelectItem key={unidade.id} value={unidade.id}>
+                            {unidade.nome}
+                            {unidade.cidade ? ` · ${unidade.cidade}` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-app-text-muted">
+                      Master e admin não têm unidade implícita — o template fica vinculado à unidade
+                      escolhida (ex.: para contratos de parceiros dessa clínica).
+                    </p>
+                  </div>
+                )}
               </div>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -276,7 +325,9 @@ export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit
                   />
                 </label>
                 <label className="flex flex-col items-start gap-1 p-3 rounded-xl border border-app-border dark:border-app-border-dark">
-                  <span className="text-xs text-app-text-secondary dark:text-white/60">Portal do paciente</span>
+                  <span className="text-xs text-app-text-secondary dark:text-white/60">
+                    Portal do paciente
+                  </span>
                   <Switch checked={disponivelPortal} onCheckedChange={setDisponivelPortal} />
                 </label>
               </div>
@@ -302,7 +353,9 @@ export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit
                 />
               </div>
               <label className="flex flex-col items-start gap-1 p-3 rounded-xl border border-app-border dark:border-app-border-dark">
-                <span className="text-xs text-app-text-secondary dark:text-white/60">Exibir logo</span>
+                <span className="text-xs text-app-text-secondary dark:text-white/60">
+                  Exibir logo
+                </span>
                 <Switch
                   checked={Boolean(conteudo.cabecalho.logo)}
                   onCheckedChange={(checked) =>
@@ -411,7 +464,9 @@ export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit
                 />
               </label>
               <label className="flex flex-col items-start gap-1 p-3 rounded-xl border border-app-border dark:border-app-border-dark">
-                <span className="text-xs text-app-text-secondary dark:text-white/60">Dados da clínica</span>
+                <span className="text-xs text-app-text-secondary dark:text-white/60">
+                  Dados da clínica
+                </span>
                 <Switch
                   checked={Boolean(conteudo.rodape.dados_clinica)}
                   onCheckedChange={(checked) =>
@@ -423,7 +478,9 @@ export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit
                 />
               </label>
               <label className="flex flex-col items-start gap-1 p-3 rounded-xl border border-app-border dark:border-app-border-dark">
-                <span className="text-xs text-app-text-secondary dark:text-white/60">Conselho do profissional</span>
+                <span className="text-xs text-app-text-secondary dark:text-white/60">
+                  Conselho do profissional
+                </span>
                 <Switch
                   checked={Boolean(conteudo.rodape.conselho)}
                   onCheckedChange={(checked) =>
@@ -480,7 +537,7 @@ export function EditarTemplateModal({ open, onOpenChange, template, mode = 'edit
           <Button
             className="rounded-xl bg-app-primary text-white hover:bg-app-primary-hover"
             onClick={() => void handleSave()}
-            disabled={isSaving || !nome.trim() || !slugValido}
+            disabled={isSaving || !nome.trim() || !slugValido || !unidadeValida}
           >
             {isSaving ? 'Salvando...' : isCreate ? 'Criar template' : 'Salvar template'}
           </Button>
@@ -521,7 +578,9 @@ function SecaoEditor({ secao, onChange }: SecaoEditorProps) {
           />
           {secao.tipo === 'campo_data' && (
             <>
-              <label className="text-xs text-app-text-secondary dark:text-white/60">Valor padrão</label>
+              <label className="text-xs text-app-text-secondary dark:text-white/60">
+                Valor padrão
+              </label>
               <Input
                 value={secao.valor_padrao ?? ''}
                 onChange={(event) => onChange({ ...secao, valor_padrao: event.target.value })}
@@ -545,7 +604,9 @@ function SecaoEditor({ secao, onChange }: SecaoEditorProps) {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs text-app-text-secondary dark:text-white/60">Placeholder</label>
+            <label className="text-xs text-app-text-secondary dark:text-white/60">
+              Placeholder
+            </label>
             <Input
               value={secao.placeholder ?? ''}
               onChange={(event) => onChange({ ...secao, placeholder: event.target.value })}
@@ -553,7 +614,9 @@ function SecaoEditor({ secao, onChange }: SecaoEditorProps) {
             />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <label className="text-xs text-app-text-secondary dark:text-white/60">Valor padrão</label>
+            <label className="text-xs text-app-text-secondary dark:text-white/60">
+              Valor padrão
+            </label>
             <Input
               value={secao.valor_padrao ?? ''}
               onChange={(event) => onChange({ ...secao, valor_padrao: event.target.value })}
@@ -579,7 +642,9 @@ function SecaoEditor({ secao, onChange }: SecaoEditorProps) {
             onChange={(event) => onChange({ ...secao, label: event.target.value })}
             className="h-10 bg-app-bg-secondary border-app-border dark:bg-app-hover dark:border-app-border-dark rounded-lg"
           />
-          <label className="text-xs text-app-text-secondary dark:text-white/60">Texto base (editável pelo especialista)</label>
+          <label className="text-xs text-app-text-secondary dark:text-white/60">
+            Texto base (editável pelo especialista)
+          </label>
           <Textarea
             value={secao.valor_padrao ?? ''}
             onChange={(event) => onChange({ ...secao, valor_padrao: event.target.value })}
@@ -592,7 +657,9 @@ function SecaoEditor({ secao, onChange }: SecaoEditorProps) {
       return (
         <div className="space-y-3">
           <div className="space-y-2">
-            <label className="text-xs text-app-text-secondary dark:text-white/60">Rótulo do grupo</label>
+            <label className="text-xs text-app-text-secondary dark:text-white/60">
+              Rótulo do grupo
+            </label>
             <Input
               value={secao.label}
               onChange={(event) => onChange({ ...secao, label: event.target.value })}
@@ -610,7 +677,9 @@ function SecaoEditor({ secao, onChange }: SecaoEditorProps) {
       return (
         <div className="space-y-3">
           <div className="space-y-2">
-            <label className="text-xs text-app-text-secondary dark:text-white/60">Rótulo do grupo</label>
+            <label className="text-xs text-app-text-secondary dark:text-white/60">
+              Rótulo do grupo
+            </label>
             <Input
               value={secao.label}
               onChange={(event) => onChange({ ...secao, label: event.target.value })}
@@ -629,7 +698,9 @@ function SecaoEditor({ secao, onChange }: SecaoEditorProps) {
       return (
         <div className="space-y-3">
           <div className="space-y-2">
-            <label className="text-xs text-app-text-secondary dark:text-white/60">Rótulo do grupo</label>
+            <label className="text-xs text-app-text-secondary dark:text-white/60">
+              Rótulo do grupo
+            </label>
             <Input
               value={secao.label}
               onChange={(event) => onChange({ ...secao, label: event.target.value })}
@@ -737,7 +808,11 @@ function ItensChecklistEditor({
               <Input
                 value={item.label}
                 onChange={(event) =>
-                  onChange(itens.map((value, i) => (i === idx ? { ...value, label: event.target.value } : value)))
+                  onChange(
+                    itens.map((value, i) =>
+                      i === idx ? { ...value, label: event.target.value } : value,
+                    ),
+                  )
                 }
                 placeholder="Pergunta (ex.: Tabagismo?)"
                 className="h-8 bg-transparent border-0 rounded-md px-2"
@@ -746,7 +821,9 @@ function ItensChecklistEditor({
                 <Switch
                   checked={Boolean(item.com_obs)}
                   onCheckedChange={(checked) =>
-                    onChange(itens.map((value, i) => (i === idx ? { ...value, com_obs: checked } : value)))
+                    onChange(
+                      itens.map((value, i) => (i === idx ? { ...value, com_obs: checked } : value)),
+                    )
                   }
                 />
                 obs
@@ -754,7 +831,11 @@ function ItensChecklistEditor({
               <Input
                 value={item.obs_label ?? ''}
                 onChange={(event) =>
-                  onChange(itens.map((value, i) => (i === idx ? { ...value, obs_label: event.target.value } : value)))
+                  onChange(
+                    itens.map((value, i) =>
+                      i === idx ? { ...value, obs_label: event.target.value } : value,
+                    ),
+                  )
                 }
                 placeholder="Qual?"
                 disabled={!item.com_obs}
