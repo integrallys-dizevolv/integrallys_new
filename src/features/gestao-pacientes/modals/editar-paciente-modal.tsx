@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useCallback, useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { Phone, User, MapPin, Heart, Upload, Camera } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -13,7 +13,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Patient } from '@/types/patient'
 import { DocumentoCadastro } from '../components/documento-cadastro'
 import { gerarCadastroPdf, abrirWhatsAppCadastro } from '../utils/documento-pdf'
-import { buscarCnpj } from '@/services/cnpj.service'
+import { FeedbackConsulta, SpinnerCampo } from '@/components/shared/feedback-consulta'
+import { useConsultaCep } from '@/hooks/use-consulta-cep'
+import { useConsultaCnpj } from '@/hooks/use-consulta-cnpj'
+import {
+    formatarCEP,
+    formatarCNPJ,
+    formatarCPF,
+    formatarTelefone,
+    normalizarCNPJ,
+    validarCNPJ,
+    validarCPF,
+    validarTelefone,
+} from '@/lib/validacao-br'
+import type { EnderecoCep } from '@/services/cep.service'
+import type { EmpresaCnpj } from '@/services/cnpj.service'
 import { toast } from 'sonner'
 import { PhotoSourceModal } from '@/features/media/components/photo-source-modal'
 import { CameraCaptureModal } from '@/features/media/components/camera-capture-modal'
@@ -79,8 +93,6 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
     })
 
     const [patientAge, setPatientAge] = useState<number | null>(null);
-    const [isLoadingCep, setIsLoadingCep] = useState(false);
-    const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
     const documentoRef = useRef<HTMLDivElement | null>(null);
     const uploadInputRef = useRef<HTMLInputElement | null>(null)
@@ -143,12 +155,12 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
 
             setFormData({
                 nome: paciente.name || '',
-                cpf: paciente.cpf || '',
+                cpf: formatarCPF(paciente.cpf || ''),
                 rg: paciente.rg || '',
                 inscricaoEstadual: inscricaoEstadualLegacy.inscricaoEstadual || '',
                 dataNascimento: paciente.birthDate || '',
                 sexo: paciente.gender || '',
-                telefone: paciente.phone || '',
+                telefone: formatarTelefone(paciente.phone || ''),
                 email: paciente.email || '',
                 indicacao: paciente.source || '',
                 status: paciente.activeStatus || 'Ativo',
@@ -158,7 +170,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                 photoUrl: paciente.photoUrl || '',
                 photoFile: null,
                 addressDetails: {
-                    zipCode: paciente.addressDetails?.zipCode || '',
+                    zipCode: formatarCEP(paciente.addressDetails?.zipCode || ''),
                     street: paciente.addressDetails?.street || '',
                     number: paciente.addressDetails?.number || '',
                     complement: paciente.addressDetails?.complement || '',
@@ -173,15 +185,15 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                 },
                 responsible: {
                     name: paciente.responsible?.name || '',
-                    cpf: paciente.responsible?.cpf || '',
-                    phone: paciente.responsible?.phone || '',
+                    cpf: formatarCPF(paciente.responsible?.cpf || ''),
+                    phone: formatarTelefone(paciente.responsible?.phone || ''),
                     relationship: paciente.responsible?.relationship || '',
                     birthDate: responsibleLegacy?.birthDate || '',
                     age: responsibleLegacy?.age || ''
                 },
                 supplierData: {
                     razaoSocial: paciente.supplierData?.razaoSocial || '',
-                    cnpj: paciente.supplierData?.cnpj || '',
+                    cnpj: formatarCNPJ(paciente.supplierData?.cnpj || ''),
                     inscricaoEstadual: paciente.supplierData?.inscricaoEstadual || '',
                     contatoNome: paciente.supplierData?.contatoNome || '',
                     contatoSetor: paciente.supplierData?.contatoSetor || '',
@@ -225,32 +237,42 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
     const needsMandatoryResponsible = patientAge !== null && patientAge < 18;
     const showOptionalResponsible = patientAge !== null && patientAge > 70;
 
-    const handleCepBlur = async () => {
-        const cep = formData.addressDetails.zipCode.replace(/\D/g, '');
-        if (cep.length === 8) {
-            setIsLoadingCep(true);
-            try {
-                const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-                const data = await response.json();
-                if (!data.erro) {
-                    setFormData(prev => ({
-                        ...prev,
-                        addressDetails: {
-                            ...prev.addressDetails,
-                            street: data.logradouro,
-                            neighborhood: data.bairro,
-                            city: data.localidade,
-                            state: data.uf
-                        }
-                    }));
-                }
-            } catch (error) {
-                void error;
-            } finally {
-                setIsLoadingCep(false);
+    const aoEncontrarCep = useCallback((endereco: EnderecoCep) => {
+        setFormData(prev => ({
+            ...prev,
+            addressDetails: {
+                ...prev.addressDetails,
+                street: prev.addressDetails.street || endereco.logradouro,
+                neighborhood: prev.addressDetails.neighborhood || endereco.bairro,
+                city: prev.addressDetails.city || endereco.cidade,
+                state: prev.addressDetails.state || endereco.estado,
             }
-        }
-    }
+        }));
+    }, []);
+
+    const aoEncontrarCnpj = useCallback((empresa: EmpresaCnpj) => {
+        setFormData((prev) => ({
+            ...prev,
+            email: prev.email || empresa.email,
+            telefone: prev.telefone || formatarTelefone(empresa.telefone),
+            addressDetails: {
+                ...prev.addressDetails,
+                zipCode: prev.addressDetails.zipCode || formatarCEP(empresa.endereco.cep),
+                street: prev.addressDetails.street || empresa.endereco.logradouro,
+                number: prev.addressDetails.number || empresa.endereco.numero,
+                neighborhood: prev.addressDetails.neighborhood || empresa.endereco.bairro,
+                city: prev.addressDetails.city || empresa.endereco.cidade,
+                state: prev.addressDetails.state || empresa.endereco.estado,
+            },
+            supplierData: {
+                ...prev.supplierData,
+                razaoSocial: prev.supplierData.razaoSocial || empresa.razaoSocial,
+            },
+        }))
+    }, []);
+
+    const consultaCep = useConsultaCep(aoEncontrarCep);
+    const consultaCnpj = useConsultaCnpj(aoEncontrarCnpj);
 
     const updateAddress = (field: string, value: string) => {
         setFormData(prev => ({
@@ -259,49 +281,22 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
         }));
     }
 
-    const handleBuscarCnpj = async () => {
-        const digits = formData.supplierData.cnpj.replace(/\D/g, '')
-        if (digits.length !== 14) return
-
-        setIsLoadingCnpj(true)
-        try {
-            const result = await buscarCnpj(digits)
-            setFormData((prev) => ({
-                ...prev,
-                email: prev.email || result.email || '',
-                telefone: prev.telefone || result.telefone || '',
-                addressDetails: {
-                    ...prev.addressDetails,
-                    zipCode: prev.addressDetails.zipCode || result.endereco?.cep || '',
-                    street: prev.addressDetails.street || result.endereco?.logradouro || '',
-                    number: prev.addressDetails.number || result.endereco?.numero || '',
-                    neighborhood: prev.addressDetails.neighborhood || result.endereco?.bairro || '',
-                    city: prev.addressDetails.city || result.endereco?.cidade || '',
-                    state: prev.addressDetails.state || result.endereco?.uf || '',
-                },
-                supplierData: {
-                    ...prev.supplierData,
-                    razaoSocial: prev.supplierData.razaoSocial || result.razaoSocial,
-                    cnpj: prev.supplierData.cnpj || result.cnpj,
-                    inscricaoEstadual: prev.supplierData.inscricaoEstadual || `IE-${digits.slice(0, 6)}`,
-                },
-            }))
-            toast.success('Dados do CNPJ preenchidos automaticamente.')
-        } catch {
-            const generatedRazao = `Fornecedor ${digits.slice(8)}`
-            setFormData((prev) => ({
-                ...prev,
-                supplierData: {
-                    ...prev.supplierData,
-                    razaoSocial: prev.supplierData.razaoSocial || generatedRazao,
-                    inscricaoEstadual: prev.supplierData.inscricaoEstadual || `IE-${digits.slice(0, 6)}`,
-                },
-            }))
-            toast.error('Falha na consulta online. Preenchimento básico aplicado.')
-        } finally {
-            setIsLoadingCnpj(false)
-        }
+    const handleCepChange = (valor: string) => {
+        const mascarado = formatarCEP(valor);
+        updateAddress('zipCode', mascarado);
+        void consultaCep.consultar(mascarado);
     }
+
+    const handleCnpjChange = (valor: string) => {
+        const mascarado = formatarCNPJ(valor);
+        setFormData(prev => ({ ...prev, supplierData: { ...prev.supplierData, cnpj: mascarado } }));
+        void consultaCnpj.consultar(mascarado);
+    }
+
+    // Só acusa erro depois de o documento estar completo — não enquanto digita.
+    const cpfCompletoInvalido = formData.cpf.replace(/\D/g, '').length === 11 && !validarCPF(formData.cpf);
+    const telefoneCompletoInvalido = formData.telefone.replace(/\D/g, '').length >= 10 && !validarTelefone(formData.telefone);
+    const respCpfCompletoInvalido = formData.responsible.cpf.replace(/\D/g, '').length === 11 && !validarCPF(formData.responsible.cpf);
 
     const toggleSpecialNeed = (category: string) => {
         const current = formData.specialNeeds.categories;
@@ -331,6 +326,31 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
         const selectedUnit = unitOptions.find((unit) => unit.id === formData.unidadeId)
         if (!selectedUnit) {
             toast.error('Selecione uma unidade válida para o paciente.')
+            return
+        }
+
+        if (formData.cpf.trim() && !validarCPF(formData.cpf)) {
+            toast.error('CPF inválido — confira os dígitos verificadores.')
+            return
+        }
+
+        if (formData.telefone.trim() && !validarTelefone(formData.telefone)) {
+            toast.error('Telefone inválido — confira o DDD e a quantidade de dígitos.')
+            return
+        }
+
+        if (formData.responsible.cpf.trim() && !validarCPF(formData.responsible.cpf)) {
+            toast.error('CPF do responsável inválido — confira os dígitos verificadores.')
+            return
+        }
+
+        if (formData.responsible.phone.trim() && !validarTelefone(formData.responsible.phone)) {
+            toast.error('Telefone do responsável inválido — confira o DDD e a quantidade de dígitos.')
+            return
+        }
+
+        if (formData.supplierData.cnpj.trim() && !validarCNPJ(formData.supplierData.cnpj)) {
+            toast.error('CNPJ inválido — confira os dígitos verificadores.')
             return
         }
 
@@ -385,7 +405,7 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                 supplierData: formData.vinculoTipos.includes('fornecedor') || formData.vinculoTipos.includes('prestador')
                     ? {
                         razaoSocial: formData.supplierData.razaoSocial,
-                        cnpj: formData.supplierData.cnpj,
+                        cnpj: normalizarCNPJ(formData.supplierData.cnpj),
                         inscricaoEstadual: formData.supplierData.inscricaoEstadual,
                         contatoNome: formData.supplierData.contatoNome,
                         contatoSetor: formData.supplierData.contatoSetor,
@@ -444,7 +464,8 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                     </div>
                                     <div className="md:col-span-2 space-y-2">
                                         <Label htmlFor="cpf" className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">CPF *</Label>
-                                        <Input id="cpf" value={formData.cpf} onChange={(e) => setFormData({ ...formData, cpf: e.target.value })} className="h-11 rounded-xl border-app-border dark:border-app-border-dark" placeholder="000.000.000-00" required />
+                                        <Input id="cpf" value={formData.cpf} onChange={(e) => setFormData({ ...formData, cpf: formatarCPF(e.target.value) })} className="h-11 rounded-xl border-app-border dark:border-app-border-dark" placeholder="000.000.000-00" inputMode="numeric" required />
+                                        {cpfCompletoInvalido && <p className="mt-1 text-xs leading-snug text-[var(--app-danger-text)]">CPF inválido — confira os dígitos verificadores.</p>}
                                     </div>
                                     <div className="md:col-span-2 space-y-2">
                                         <Label htmlFor="rg" className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">RG</Label>
@@ -564,12 +585,19 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                             <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Razão social</Label>
                                             <Input value={formData.supplierData.razaoSocial} onChange={(e) => setFormData({ ...formData, supplierData: { ...formData.supplierData, razaoSocial: e.target.value } })} className="h-11 rounded-xl border-app-border dark:border-app-border-dark" />
                                         </div>
-                                        <div className="md:col-span-2 space-y-2">
+                                        <div className="md:col-span-3 space-y-2">
                                             <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">CNPJ</Label>
-                                            <Input value={formData.supplierData.cnpj} onChange={(e) => setFormData({ ...formData, supplierData: { ...formData.supplierData, cnpj: e.target.value } })} className="h-11 rounded-xl border-app-border dark:border-app-border-dark" placeholder="00.000.000/0000-00" />
-                                        </div>
-                                        <div className="md:col-span-1 flex items-end">
-                                            <Button type="button" variant="outline" className="h-11 w-full" onClick={() => void handleBuscarCnpj()} disabled={isLoadingCnpj}>{isLoadingCnpj ? 'Buscando...' : 'Buscar CNPJ'}</Button>
+                                            <div className="relative">
+                                                <Input value={formData.supplierData.cnpj} onChange={(e) => handleCnpjChange(e.target.value)} className="h-11 rounded-xl pr-10 border-app-border dark:border-app-border-dark" placeholder="00.000.000/0000-00" autoComplete="off" inputMode="text" />
+                                                {consultaCnpj.status === 'buscando' && <SpinnerCampo />}
+                                            </div>
+                                            <FeedbackConsulta
+                                                status={consultaCnpj.status}
+                                                buscando="Consultando na Receita Federal..."
+                                                encontrado={formData.supplierData.razaoSocial}
+                                                invalido="CNPJ inválido — confira os dígitos verificadores."
+                                                naoEncontrado="CNPJ não encontrado na Receita — você pode seguir e preencher manualmente."
+                                            />
                                         </div>
                                         <div className="md:col-span-2 space-y-2">
                                             <Label className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Inscrição estadual</Label>
@@ -598,9 +626,15 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                     <div className="md:col-span-2 space-y-2">
                                         <Label htmlFor="cep" className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">CEP *</Label>
                                         <div className="relative">
-                                            <Input id="cep" value={formData.addressDetails.zipCode} onChange={(e) => updateAddress('zipCode', e.target.value)} onBlur={handleCepBlur} className="h-11 rounded-xl pr-10 border-app-border dark:border-app-border-dark" placeholder="00000-000" required />
-                                            {isLoadingCep && <div className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 border-2 border-app-primary border-t-transparent rounded-full animate-spin" />}
+                                            <Input id="cep" value={formData.addressDetails.zipCode} onChange={(e) => handleCepChange(e.target.value)} className="h-11 rounded-xl pr-10 border-app-border dark:border-app-border-dark" placeholder="00000-000" inputMode="numeric" required />
+                                            {consultaCep.status === 'buscando' && <SpinnerCampo />}
                                         </div>
+                                        <FeedbackConsulta
+                                            status={consultaCep.status}
+                                            buscando="Buscando endereço..."
+                                            encontrado="Endereço preenchido pelo CEP — confira e ajuste se precisar."
+                                            naoEncontrado="CEP não encontrado — preencha o endereço manualmente."
+                                        />
                                     </div>
                                     <div className="md:col-span-3 space-y-2">
                                         <Label htmlFor="logradouro" className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Logradouro</Label>
@@ -635,7 +669,8 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-5">
                                     <div className="space-y-2">
                                         <Label htmlFor="telefone" className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">Telefone / WhatsApp *</Label>
-                                        <Input id="telefone" value={formData.telefone} onChange={(e) => setFormData({ ...formData, telefone: e.target.value })} className="h-11 rounded-xl border-app-border dark:border-app-border-dark" placeholder="(00) 00000-0000" required />
+                                        <Input id="telefone" value={formData.telefone} onChange={(e) => setFormData({ ...formData, telefone: formatarTelefone(e.target.value) })} className="h-11 rounded-xl border-app-border dark:border-app-border-dark" placeholder="(00) 00000-0000" inputMode="tel" required />
+                                        {telefoneCompletoInvalido && <p className="mt-1 text-xs leading-snug text-[var(--app-danger-text)]">Telefone inválido — confira o DDD e a quantidade de dígitos.</p>}
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="email" className="text-xs font-bold text-[var(--app-text-primary)] dark:text-white/70 uppercase tracking-tight">E-mail</Label>
@@ -662,11 +697,12 @@ export function EditarPacienteModal({ isOpen, onClose, paciente, unitOptions, lo
                                             </div>
                                             <div className="space-y-2">
                                                 <Label htmlFor="resp-cpf" className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/60 uppercase">CPF do Responsável</Label>
-                                                <Input id="resp-cpf" value={formData.responsible.cpf} onChange={(e) => setFormData(prev => ({ ...prev, responsible: { ...prev.responsible, cpf: e.target.value } }))} className="h-11 rounded-xl bg-white dark:bg-transparent border-app-border dark:border-app-border-dark" />
+                                                <Input id="resp-cpf" value={formData.responsible.cpf} onChange={(e) => setFormData(prev => ({ ...prev, responsible: { ...prev.responsible, cpf: formatarCPF(e.target.value) } }))} className="h-11 rounded-xl bg-white dark:bg-transparent border-app-border dark:border-app-border-dark" placeholder="000.000.000-00" inputMode="numeric" />
+                                                {respCpfCompletoInvalido && <p className="mt-1 text-xs leading-snug text-[var(--app-danger-text)]">CPF inválido — confira os dígitos verificadores.</p>}
                                             </div>
                                             <div className="space-y-2">
                                                 <Label htmlFor="resp-tel" className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/60 uppercase">Telefone do Responsável</Label>
-                                                <Input id="resp-tel" value={formData.responsible.phone} onChange={(e) => setFormData(prev => ({ ...prev, responsible: { ...prev.responsible, phone: e.target.value } }))} className="h-11 rounded-xl bg-white dark:bg-transparent border-app-border dark:border-app-border-dark" />
+                                                <Input id="resp-tel" value={formData.responsible.phone} onChange={(e) => setFormData(prev => ({ ...prev, responsible: { ...prev.responsible, phone: formatarTelefone(e.target.value) } }))} className="h-11 rounded-xl bg-white dark:bg-transparent border-app-border dark:border-app-border-dark" placeholder="(00) 00000-0000" inputMode="tel" />
                                             </div>
                                             <div className="space-y-2">
                                                 <Label htmlFor="resp-nasc" className="text-xs font-bold text-[var(--app-text-secondary)] dark:text-white/60 uppercase">Data de Nascimento</Label>

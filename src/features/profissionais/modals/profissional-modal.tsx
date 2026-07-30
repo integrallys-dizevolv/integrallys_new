@@ -1,8 +1,9 @@
 'use client'
 
 import { Stethoscope } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { FeedbackConsulta, SpinnerCampo } from '@/components/shared/feedback-consulta'
 import { ModalHeader } from '@/components/shared/modal-header'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
@@ -17,8 +18,17 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useProcedimentos } from '@/features/procedimentos/hooks/use-procedimentos'
+import { useConsultaCep } from '@/hooks/use-consulta-cep'
 import { useUnidades } from '@/hooks/use-unidades'
 import { cn } from '@/lib/utils'
+import {
+  formatarCEP,
+  formatarCPF,
+  formatarTelefone,
+  validarCPF,
+  validarTelefone,
+} from '@/lib/validacao-br'
+import type { EnderecoCep } from '@/services/cep.service'
 import type { ProfissionalInput, ProfissionalItem, ProfissionalTurno } from '@/types/profissional'
 
 const DIAS: Array<{ label: string; value: number }> = [
@@ -94,6 +104,7 @@ type BasicForm = {
   estadoCivil: string
   endereco: string
   bairro: string
+  cidade: string
   cep: string
   estado: string
   tipoVinculo: 'interno' | 'parceiro'
@@ -114,6 +125,7 @@ const emptyBasic = (): BasicForm => ({
   estadoCivil: '',
   endereco: '',
   bairro: '',
+  cidade: '',
   cep: '',
   estado: '',
   tipoVinculo: 'interno',
@@ -139,22 +151,38 @@ export function ProfissionalModal({
   const [repasseValor, setRepasseValor] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Auto-preenchimento de endereço pelo CEP (backlog do item 12 — sugestão da
+  // Camila). Só preenche campo vazio, para nunca sobrescrever correção manual.
+  const aoEncontrarCep = useCallback((endereco: EnderecoCep) => {
+    setBasic((prev) => ({
+      ...prev,
+      endereco: prev.endereco || endereco.logradouro,
+      bairro: prev.bairro || endereco.bairro,
+      cidade: prev.cidade || endereco.cidade,
+      estado: prev.estado || endereco.estado,
+    }))
+  }, [])
+
+  const consultaCep = useConsultaCep(aoEncontrarCep)
+
   useEffect(() => {
     if (!isOpen) return
+    consultaCep.reiniciar()
     setBasic({
       nome: initial?.nome ?? '',
       email: initial?.email ?? '',
       senha: '',
-      telefone: initial?.telefone ?? '',
+      telefone: formatarTelefone(initial?.telefone ?? ''),
       conselho: initial?.conselho ?? '',
       crm: initial?.crm ?? '',
-      cpf: initial?.cpf ?? '',
+      cpf: formatarCPF(initial?.cpf ?? ''),
       dataNascimento: initial?.dataNascimento ?? '',
       rg: initial?.rg ?? '',
       estadoCivil: initial?.estadoCivil ?? '',
       endereco: initial?.endereco ?? '',
       bairro: initial?.bairro ?? '',
-      cep: initial?.cep ?? '',
+      cidade: initial?.cidade ?? '',
+      cep: formatarCEP(initial?.cep ?? ''),
       estado: initial?.estado ?? '',
       tipoVinculo: initial?.tipoVinculo ?? 'interno',
       status: initial?.status === 'Inativo' ? 'Inativo' : 'Ativo',
@@ -173,7 +201,7 @@ export function ProfissionalModal({
       setRepasseTipo('percentual')
       setRepasseValor('')
     }
-  }, [isOpen, initial])
+  }, [isOpen, initial, consultaCep.reiniciar])
 
   const procedimentosAtivos = useMemo(
     () => procedimentos.filter((item) => item.ativo),
@@ -188,6 +216,17 @@ export function ProfissionalModal({
 
   const setBasicField = <K extends keyof BasicForm>(key: K, value: BasicForm[K]) =>
     setBasic((prev) => ({ ...prev, [key]: value }))
+
+  const handleCepChange = (valor: string) => {
+    const mascarado = formatarCEP(valor)
+    setBasicField('cep', mascarado)
+    void consultaCep.consultar(mascarado)
+  }
+
+  // Só acusa erro depois de o documento estar completo — não enquanto digita.
+  const cpfCompletoInvalido = basic.cpf.replace(/\D/g, '').length === 11 && !validarCPF(basic.cpf)
+  const telefoneCompletoInvalido =
+    basic.telefone.replace(/\D/g, '').length >= 10 && !validarTelefone(basic.telefone)
 
   const setTurnoField = (dia: number, turno: ProfissionalTurno, patch: Partial<TurnoForm>) =>
     setGrade((prev) => ({
@@ -246,6 +285,18 @@ export function ProfissionalModal({
       toast.error('Defina uma senha inicial com pelo menos 6 caracteres.')
       return
     }
+    if (mode === 'edit' && basic.senha.trim() !== '' && basic.senha.trim().length < 6) {
+      toast.error('A nova senha deve ter pelo menos 6 caracteres.')
+      return
+    }
+    if (basic.cpf.trim() && !validarCPF(basic.cpf)) {
+      toast.error('CPF inválido — confira os dígitos verificadores.')
+      return
+    }
+    if (basic.telefone.trim() && !validarTelefone(basic.telefone)) {
+      toast.error('Telefone inválido — confira o DDD e a quantidade de dígitos.')
+      return
+    }
 
     const horarios = buildHorarios()
     if (horarios === null) return
@@ -255,11 +306,12 @@ export function ProfissionalModal({
       const parsed = Number(repasseValor)
       const repasseNumber = repasseValor.trim() === '' || !Number.isFinite(parsed) ? null : parsed
       const isParceiro = basic.tipoVinculo === 'parceiro'
+      const senhaDefinida = basic.senha.trim()
       await onSave({
         id: initial?.id,
         nome: basic.nome.trim(),
         email: basic.email.trim(),
-        senha: mode === 'create' ? basic.senha.trim() : undefined,
+        senha: mode === 'create' ? senhaDefinida : senhaDefinida || undefined,
         telefone: basic.telefone.trim() || null,
         conselho: basic.conselho.trim() || null,
         crm: basic.crm.trim() || null,
@@ -269,6 +321,7 @@ export function ProfissionalModal({
         estadoCivil: basic.estadoCivil.trim() || null,
         endereco: basic.endereco.trim() || null,
         bairro: basic.bairro.trim() || null,
+        cidade: basic.cidade.trim() || null,
         cep: basic.cep.trim() || null,
         estado: basic.estado.trim() || null,
         tipoVinculo: basic.tipoVinculo,
@@ -280,11 +333,24 @@ export function ProfissionalModal({
         horarios,
         procedimentoIds,
       })
-      toast.success(
-        mode === 'edit'
-          ? 'Profissional atualizado com sucesso.'
-          : 'Profissional cadastrado com sucesso.',
-      )
+      // Item 15b — devolve a senha definida de forma copiável, para o operador ter
+      // um artefato concreto para repassar ao profissional (não há convite por e-mail
+      // nem autoatendimento de senha). Vale na criação (senha obrigatória) e na edição
+      // quando o operador preencheu "Nova senha".
+      if (senhaDefinida) {
+        toast.success(mode === 'edit' ? 'Senha redefinida.' : 'Profissional cadastrado.', {
+          description: `Login: ${basic.email.trim()} · Senha: ${senhaDefinida} — repasse ao profissional.`,
+          duration: 15000,
+          action: {
+            label: 'Copiar',
+            onClick: () => {
+              void navigator.clipboard?.writeText(`${basic.email.trim()} / ${senhaDefinida}`)
+            },
+          },
+        })
+      } else {
+        toast.success('Profissional atualizado com sucesso.')
+      }
       onClose()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Não foi possível salvar o profissional.')
@@ -331,19 +397,26 @@ export function ProfissionalModal({
                   onChange={(e) => setBasicField('email', e.target.value)}
                 />
               </div>
-              {mode === 'create' && (
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
-                    Senha inicial
-                  </Label>
-                  <Input
-                    type="password"
-                    placeholder="Mínimo de 6 caracteres"
-                    value={basic.senha}
-                    onChange={(e) => setBasicField('senha', e.target.value)}
-                  />
-                </div>
-              )}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                  {mode === 'create' ? 'Senha inicial' : 'Nova senha (opcional)'}
+                </Label>
+                <Input
+                  type="password"
+                  placeholder={
+                    mode === 'create'
+                      ? 'Mínimo de 6 caracteres'
+                      : 'Deixe em branco para manter a senha atual'
+                  }
+                  value={basic.senha}
+                  onChange={(e) => setBasicField('senha', e.target.value)}
+                />
+                {mode === 'edit' && (
+                  <p className="text-xs text-app-text-muted">
+                    Preencha para redefinir a senha de acesso deste profissional.
+                  </p>
+                )}
+              </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
                   Telefone
@@ -351,8 +424,14 @@ export function ProfissionalModal({
                 <Input
                   placeholder="(00) 00000-0000"
                   value={basic.telefone}
-                  onChange={(e) => setBasicField('telefone', e.target.value)}
+                  onChange={(e) => setBasicField('telefone', formatarTelefone(e.target.value))}
+                  inputMode="tel"
                 />
+                {telefoneCompletoInvalido && (
+                  <p className="mt-1 text-xs leading-snug text-[var(--app-danger-text)]">
+                    Telefone inválido — confira o DDD e a quantidade de dígitos.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
@@ -488,8 +567,14 @@ export function ProfissionalModal({
                 <Input
                   placeholder="000.000.000-00"
                   value={basic.cpf}
-                  onChange={(e) => setBasicField('cpf', e.target.value)}
+                  onChange={(e) => setBasicField('cpf', formatarCPF(e.target.value))}
+                  inputMode="numeric"
                 />
+                {cpfCompletoInvalido && (
+                  <p className="mt-1 text-xs leading-snug text-[var(--app-danger-text)]">
+                    CPF inválido — confira os dígitos verificadores.
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
@@ -543,12 +628,33 @@ export function ProfissionalModal({
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
-                  CEP
+                  Cidade
                 </Label>
                 <Input
-                  placeholder="00000-000"
-                  value={basic.cep}
-                  onChange={(e) => setBasicField('cep', e.target.value)}
+                  placeholder="Cidade"
+                  value={basic.cidade}
+                  onChange={(e) => setBasicField('cidade', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold text-[var(--app-text-primary)] dark:text-white">
+                  CEP
+                </Label>
+                <div className="relative">
+                  <Input
+                    placeholder="00000-000"
+                    value={basic.cep}
+                    onChange={(e) => handleCepChange(e.target.value)}
+                    inputMode="numeric"
+                    className="pr-10"
+                  />
+                  {consultaCep.status === 'buscando' && <SpinnerCampo />}
+                </div>
+                <FeedbackConsulta
+                  status={consultaCep.status}
+                  buscando="Buscando endereço..."
+                  encontrado="Endereço preenchido pelo CEP — confira e ajuste se precisar."
+                  naoEncontrado="CEP não encontrado — preencha o endereço manualmente."
                 />
               </div>
               <div className="space-y-1.5">

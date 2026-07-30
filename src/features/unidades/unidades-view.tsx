@@ -1,14 +1,20 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { AlertTriangle, Building2, Edit2, Eye, MoreHorizontal, Plus, Search, Trash2 } from 'lucide-react'
+import { useConsultaCep } from '@/hooks/use-consulta-cep'
+import { useConsultaCnpj } from '@/hooks/use-consulta-cnpj'
 import { useUnidades, type UnidadeItem } from '@/hooks/use-unidades'
 import { formatEnderecoUnidade } from '@/lib/format-endereco'
+import { formatarCEP, formatarCNPJ, normalizarCNPJ, validarCNPJ } from '@/lib/validacao-br'
+import type { EnderecoCep } from '@/services/cep.service'
+import type { EmpresaCnpj } from '@/services/cnpj.service'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/shared/empty-state'
+import { FeedbackConsulta, SpinnerCampo } from '@/components/shared/feedback-consulta'
 import { PageHeader } from '@/components/shared/page-header'
 import {
   Dialog,
@@ -69,27 +75,72 @@ export function UnidadesView() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const filteredUnits = useMemo(() => {
+    const term = searchFilter.toLowerCase()
+    // O CNPJ é comparado sem máscara dos dois lados, para achar tanto quem
+    // digita "48175688" quanto quem digita "48.175.688/0001-77".
+    const termoCnpj = normalizarCNPJ(searchFilter)
     return data.filter((unit) => {
-      const term = searchFilter.toLowerCase()
       return (
         searchFilter === '' ||
         unit.nome.toLowerCase().includes(term) ||
-        (unit.cnpj ?? '').toLowerCase().includes(term) ||
+        (termoCnpj !== '' && normalizarCNPJ(unit.cnpj ?? '').includes(termoCnpj)) ||
         (unit.cidade ?? '').toLowerCase().includes(term)
       )
     })
   }, [data, searchFilter])
 
+  // Auto-preenchimento de endereço pelo CEP. Os campos seguem editáveis: o CEP
+  // só preenche o que ainda está vazio ou o que ele mesmo preencheu antes.
+  const aoEncontrarCep = useCallback((endereco: EnderecoCep) => {
+    setFormData((prev) => ({
+      ...prev,
+      endereco: prev.endereco || endereco.logradouro,
+      bairro: prev.bairro || endereco.bairro,
+      cidade: prev.cidade || endereco.cidade,
+      estado: prev.estado || endereco.estado,
+    }))
+  }, [])
+
+  // Auto-preenchimento a partir do CNPJ na Receita Federal.
+  const aoEncontrarCnpj = useCallback((empresa: EmpresaCnpj) => {
+    setFormData((prev) => ({
+      ...prev,
+      nome: prev.nome || empresa.nomeFantasia || empresa.razaoSocial,
+      cep: prev.cep || formatarCEP(empresa.endereco.cep),
+      endereco: prev.endereco || empresa.endereco.logradouro,
+      bairro: prev.bairro || empresa.endereco.bairro,
+      cidade: prev.cidade || empresa.endereco.cidade,
+      estado: prev.estado || empresa.endereco.estado,
+    }))
+  }, [])
+
+  const consultaCep = useConsultaCep(aoEncontrarCep)
+  const consultaCnpj = useConsultaCnpj(aoEncontrarCnpj)
+
+  const handleCnpjChange = (valor: string) => {
+    const mascarado = formatarCNPJ(valor)
+    setFormData((prev) => ({ ...prev, cnpj: mascarado }))
+    void consultaCnpj.consultar(mascarado)
+  }
+
+  const handleCepChange = (valor: string) => {
+    const mascarado = formatarCEP(valor)
+    setFormData((prev) => ({ ...prev, cep: mascarado }))
+    void consultaCep.consultar(mascarado)
+  }
+
   const handleOpenModal = (type: ModalType, unit?: UnidadeItem) => {
     setModalType(type)
+    consultaCep.reiniciar()
+    consultaCnpj.reiniciar()
     if (unit) {
       setSelectedUnit(unit)
       setFormData({
         nome: unit.nome,
-        cnpj: unit.cnpj ?? '',
+        cnpj: formatarCNPJ(unit.cnpj ?? ''),
         endereco: unit.endereco ?? '',
         bairro: unit.bairro ?? '',
-        cep: unit.cep ?? '',
+        cep: formatarCEP(unit.cep ?? ''),
         cidade: unit.cidade,
         estado: unit.estado ?? '',
         gestor: unit.gestor ?? '',
@@ -112,13 +163,18 @@ export function UnidadesView() {
       return
     }
 
+    if (formData.cnpj.trim() && !validarCNPJ(formData.cnpj)) {
+      toast.error('CNPJ inválido — confira os dígitos verificadores.')
+      return
+    }
+
     setIsSubmitting(true)
     try {
       if (modalType === 'edit' && selectedUnit) {
         await updateUnidade({
           id: selectedUnit.id,
           nome: formData.nome,
-          cnpj: formData.cnpj || undefined,
+          cnpj: normalizarCNPJ(formData.cnpj) || undefined,
           endereco: formData.endereco || undefined,
           bairro: formData.bairro || undefined,
           cep: formData.cep || undefined,
@@ -131,7 +187,7 @@ export function UnidadesView() {
       } else {
         await createUnidade({
           nome: formData.nome,
-          cnpj: formData.cnpj || undefined,
+          cnpj: normalizarCNPJ(formData.cnpj) || undefined,
           endereco: formData.endereco || undefined,
           bairro: formData.bairro || undefined,
           cep: formData.cep || undefined,
@@ -229,7 +285,7 @@ export function UnidadesView() {
                       <TableCell className="px-6 py-4">
                         <div className="flex flex-col">
                           <span className="max-w-[200px] truncate font-normal text-app-text-primary dark:text-white">{unit.nome}</span>
-                          <span className="mt-0.5 text-xs text-[#6a7282] dark:text-app-text-muted">{unit.cnpj ?? '--'}</span>
+                          <span className="mt-0.5 text-xs text-[#6a7282] dark:text-app-text-muted">{formatarCNPJ(unit.cnpj ?? '') || '--'}</span>
                         </div>
                       </TableCell>
                       <TableCell className="px-6 py-4">
@@ -315,7 +371,7 @@ export function UnidadesView() {
                       </div>
                       <div className="space-y-1">
                         <p className="text-lg font-normal text-app-text-primary dark:text-white">{selectedUnit.nome}</p>
-                        <p className="text-sm text-app-text-muted">{selectedUnit.cnpj ?? 'CNPJ não informado'}</p>
+                        <p className="text-sm text-app-text-muted">{formatarCNPJ(selectedUnit.cnpj ?? '') || 'CNPJ não informado'}</p>
                       </div>
                     </div>
                     <Badge
@@ -346,13 +402,27 @@ export function UnidadesView() {
                 </div>
                 <div className="space-y-3">
                   <Label>CNPJ</Label>
-                  <Input
-                    value={formData.cnpj}
-                    disabled={modalType === 'view'}
-                    onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
-                    placeholder="00.000.000/0000-00"
-                    className="h-12 rounded-[12px]"
-                  />
+                  <div className="relative">
+                    <Input
+                      value={formData.cnpj}
+                      disabled={modalType === 'view'}
+                      onChange={(e) => handleCnpjChange(e.target.value)}
+                      placeholder="00.000.000/0000-00"
+                      autoComplete="off"
+                      inputMode="text"
+                      className="h-12 rounded-[12px] pr-10"
+                    />
+                    {consultaCnpj.status === 'buscando' && <SpinnerCampo />}
+                  </div>
+                  {modalType !== 'view' && (
+                    <FeedbackConsulta
+                      status={consultaCnpj.status}
+                      buscando="Consultando na Receita Federal..."
+                      encontrado={formData.nome}
+                      invalido="CNPJ inválido — confira os dígitos verificadores."
+                      naoEncontrado="CNPJ não encontrado na Receita — você pode seguir e preencher manualmente."
+                    />
+                  )}
                 </div>
                 <div className="space-y-3 md:col-span-2">
                   <Label>Endereço (rua e número)</Label>
@@ -376,13 +446,25 @@ export function UnidadesView() {
                 </div>
                 <div className="space-y-3">
                   <Label>CEP</Label>
-                  <Input
-                    value={formData.cep}
-                    disabled={modalType === 'view'}
-                    onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
-                    placeholder="00000-000"
-                    className="h-12 rounded-[12px]"
-                  />
+                  <div className="relative">
+                    <Input
+                      value={formData.cep}
+                      disabled={modalType === 'view'}
+                      onChange={(e) => handleCepChange(e.target.value)}
+                      placeholder="00000-000"
+                      inputMode="numeric"
+                      className="h-12 rounded-[12px] pr-10"
+                    />
+                    {consultaCep.status === 'buscando' && <SpinnerCampo />}
+                  </div>
+                  {modalType !== 'view' && (
+                    <FeedbackConsulta
+                      status={consultaCep.status}
+                      buscando="Buscando endereço..."
+                      encontrado="Endereço preenchido pelo CEP — confira e ajuste se precisar."
+                      naoEncontrado="CEP não encontrado — preencha o endereço manualmente."
+                    />
+                  )}
                 </div>
                 <div className="space-y-3">
                   <Label>Cidade</Label>

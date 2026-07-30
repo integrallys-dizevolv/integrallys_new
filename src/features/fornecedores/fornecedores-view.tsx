@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { formatarCNPJ, normalizarCNPJ } from '@/lib/validacao-br'
 import type { FornecedorInput, FornecedorItem } from '@/types/fornecedor'
 import { useFornecedores } from './hooks/use-fornecedores'
 import { FornecedorModal } from './modals/fornecedor-modal'
@@ -55,12 +56,15 @@ export function FornecedoresView() {
 
   const filtered = useMemo(() => {
     const term = searchFilter.trim().toLowerCase()
+    // O CNPJ é comparado sem máscara dos dois lados: os registros antigos foram
+    // gravados com máscara e os novos sem, e a busca precisa achar os dois.
+    const termoCnpj = normalizarCNPJ(searchFilter)
     return data.filter((item) => {
       if (!term) return true
       return (
         item.nome.toLowerCase().includes(term) ||
         (item.razaoSocial ?? '').toLowerCase().includes(term) ||
-        (item.cnpj ?? '').toLowerCase().includes(term) ||
+        (termoCnpj !== '' && normalizarCNPJ(item.cnpj ?? '').includes(termoCnpj)) ||
         (item.contatoNome ?? '').toLowerCase().includes(term)
       )
     })
@@ -223,7 +227,7 @@ export function FornecedoresView() {
                         </div>
                       </TableCell>
                       <TableCell className="px-6 py-4 text-sm text-[#6a7282] dark:text-app-text-muted">
-                        {item.cnpj || '--'}
+                        {formatarCNPJ(item.cnpj ?? '') || '--'}
                       </TableCell>
                       <TableCell className="px-6 py-4 text-sm text-[#6a7282] dark:text-app-text-muted">
                         {item.contatoNome
