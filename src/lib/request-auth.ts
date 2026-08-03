@@ -1,5 +1,5 @@
 import type { PostgrestError } from '@supabase/supabase-js'
-import { NextResponse, type NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getAppSupabase } from '@/lib/app-api'
 import { getAuthUser } from '@/lib/auth'
 import { buildAuthPayloadFromUserId } from '@/lib/auth-payload'
@@ -36,17 +36,11 @@ export async function getRequestAuth(request: NextRequest): Promise<RequestAuth 
 }
 
 export function authErrorResponse() {
-  return NextResponse.json(
-    { error: 'Não autenticado', code: 'AUTH_REQUIRED' },
-    { status: 401 },
-  )
+  return NextResponse.json({ error: 'Não autenticado', code: 'AUTH_REQUIRED' }, { status: 401 })
 }
 
 export function forbiddenResponse() {
-  return NextResponse.json(
-    { error: 'Acesso negado', code: 'FORBIDDEN' },
-    { status: 403 },
-  )
+  return NextResponse.json({ error: 'Acesso negado', code: 'FORBIDDEN' }, { status: 403 })
 }
 
 /**
@@ -62,11 +56,38 @@ export function requirePatientRole(session: RequestAuth) {
   return null
 }
 
+/**
+ * Inverso de `requirePatientRole`: barra paciente em rota administrativa.
+ *
+ * Necessário porque o recurso `configuracoes` é usado por dois domínios
+ * diferentes: as preferências do próprio paciente no portal
+ * (`/api/portal/alert`, que exige `configuracoes:update`) e a configuração
+ * global da clínica. Por isso o perfil `paciente` tem `configuracoes:update`
+ * em 004_permission_defaults — grant legítimo para o portal, mas que sozinho
+ * não pode liberar a identidade da clínica.
+ */
+export function forbidPatientRole(session: RequestAuth) {
+  if (session.role === 'paciente') {
+    return forbiddenResponse()
+  }
+  return null
+}
+
 export type ScopedUnitResult =
   | { unidadeId: string | null; error: null }
   | { unidadeId: null; error: PostgrestError }
 
 const SCOPED_ROLES = ['gestor', 'recepcao', 'especialista'] as const
+
+/**
+ * Papel escopado por unidade. Distingue "sem escopo" (master/admin — unidadeId
+ * null de propósito) de "escopado, mas sem unidade no cadastro" (gestor com
+ * unidade_id nulo). `getScopedUnitId` devolve null nos dois casos, e quem
+ * precisa decidir permissão a partir disso não pode confundir os dois.
+ */
+export function isScopedRole(role: AuthUser['role']): boolean {
+  return SCOPED_ROLES.includes(role as (typeof SCOPED_ROLES)[number])
+}
 
 /**
  * Helper centralizado para escopar queries por unidade do usuário.

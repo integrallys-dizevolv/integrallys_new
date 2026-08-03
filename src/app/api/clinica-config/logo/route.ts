@@ -1,7 +1,8 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getAppSupabase, serverErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
-import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
+import { authErrorResponse, forbidPatientRole, getRequestAuth } from '@/lib/request-auth'
+import { resolverUnidade, respostaResolucaoInvalida } from '../resolver-unidade'
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'])
 const MAX_BYTES = 2 * 1024 * 1024 // 2 MB
@@ -19,6 +20,9 @@ export async function POST(request: NextRequest) {
   if (!session) return authErrorResponse()
   const denied = await requirePermission(session.userId, 'configuracoes', 'update')
   if (denied) return denied
+  // Ver forbidPatientRole: `configuracoes` é compartilhado com o portal.
+  const naoAdmin = forbidPatientRole(session)
+  if (naoAdmin) return naoAdmin
 
   const form = await request.formData().catch(() => null)
   if (!form) return serverErrorResponse('Upload inválido', 'INVALID_UPLOAD', 400)
@@ -34,11 +38,10 @@ export async function POST(request: NextRequest) {
     return serverErrorResponse('Arquivo acima de 2 MB', 'FILE_TOO_LARGE', 400)
   }
 
-  const scopedUnit = await getScopedUnitId(session)
-  const unidadeId = scopedUnit.error ? null : scopedUnit.unidadeId
-  if (!unidadeId) {
-    return serverErrorResponse('Usuário sem unidade vinculada', 'NO_UNIT', 400)
-  }
+  const informada = form.get('unidadeId')
+  const resolucao = await resolverUnidade(session, typeof informada === 'string' ? informada : null)
+  if (!resolucao.ok) return respostaResolucaoInvalida(resolucao)
+  const unidadeId = resolucao.unidadeId
 
   const supabase = getAppSupabase()
   const bytes = new Uint8Array(await file.arrayBuffer())
@@ -69,7 +72,11 @@ export async function POST(request: NextRequest) {
       .eq('unidade_id', unidadeId)
     if (updateError) {
       console.error('[clinica-config/logo] update', updateError)
-      return serverErrorResponse('Logo enviado, mas falha ao atualizar registro', 'UPDATE_FAILED', 500)
+      return serverErrorResponse(
+        'Logo enviado, mas falha ao atualizar registro',
+        'UPDATE_FAILED',
+        500,
+      )
     }
   } else {
     // Primeira gravação — usa 'Clínica' como nome placeholder; o usuário
