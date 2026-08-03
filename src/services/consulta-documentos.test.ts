@@ -102,7 +102,8 @@ describe('consultarCnpj', () => {
         email: 'contato@petrobras.com.br',
         ddd_telefone_1: '21 32242040',
         cep: '20031-170',
-        logradouro: 'AVENIDA REPUBLICA DO CHILE',
+        descricao_tipo_de_logradouro: 'AVENIDA',
+        logradouro: 'REPUBLICA DO CHILE',
         numero: '65',
         bairro: 'CENTRO',
         municipio: 'RIO DE JANEIRO',
@@ -183,6 +184,8 @@ describe('consultarCnpj', () => {
 // existe — o certo é "erro".
 // ---------------------------------------------------------------------------
 
+// Resposta real, campo a campo, de GET https://minhareceita.org/33000167000101
+// — a BrasilAPI devolve exatamente os mesmos nomes e valores para este CNPJ.
 const EMPRESA_MINHA_RECEITA = {
   cnpj: '33000167000101',
   razao_social: 'PETROLEO BRASILEIRO S A PETROBRAS',
@@ -190,6 +193,7 @@ const EMPRESA_MINHA_RECEITA = {
   email: null,
   ddd_telefone_1: '2121660000',
   cep: '20031170',
+  descricao_tipo_de_logradouro: 'AVENIDA',
   logradouro: 'REPUBLICA DO CHILE',
   numero: '65',
   complemento: '',
@@ -305,6 +309,71 @@ describe('consultarCnpj · fallback da segunda fonte', () => {
 
     expect(viaMinhaReceita).toEqual(viaBrasilApi)
     expect(viaBrasilApi.status).toBe('encontrado')
+  })
+
+  it('compõe o logradouro com o tipo, que vem em campo separado nas duas fontes', async () => {
+    // Resposta real de GET /33000167000101 nas DUAS fontes:
+    //   descricao_tipo_de_logradouro: "AVENIDA"
+    //   logradouro:                   "REPUBLICA DO CHILE"
+    // Sem juntar, o formulário grava um endereço truncado.
+    stubFetch(() => respostaJson(EMPRESA_MINHA_RECEITA))
+
+    const resultado = await consultarCnpj('33.000.167/0001-01')
+
+    expect(resultado.status).toBe('encontrado')
+    if (resultado.status !== 'encontrado') return
+    expect(resultado.empresa.endereco.logradouro).toBe('AVENIDA REPUBLICA DO CHILE')
+  })
+
+  it('compõe igual quando o logradouro é só um número (caso real da Natur & Vida)', async () => {
+    // Resposta real de GET /48175688000177 nas duas fontes. Este é o caso que
+    // deixa o defeito óbvio: sem o tipo, o endereço vira literalmente "16".
+    stubFetch(() =>
+      respostaJson({
+        razao_social: 'NATUR E VIDA LTDA',
+        descricao_tipo_de_logradouro: 'RUA',
+        logradouro: '16',
+        numero: '699',
+        bairro: 'GUARUJA',
+        municipio: 'AGUA BOA',
+        uf: 'MT',
+      }),
+    )
+
+    const resultado = await consultarCnpj('48.175.688/0001-77')
+
+    expect(resultado.status).toBe('encontrado')
+    if (resultado.status !== 'encontrado') return
+    expect(resultado.empresa.endereco.logradouro).toBe('RUA 16')
+  })
+
+  it('não deixa espaço sobrando quando o tipo vem vazio', async () => {
+    // Também é resposta real: CNPJ baixado devolve os dois campos como "".
+    stubFetch(() =>
+      respostaJson({
+        razao_social: 'X',
+        descricao_tipo_de_logradouro: '',
+        logradouro: 'DAS FLORES',
+      }),
+    )
+
+    const resultado = await consultarCnpj('33.000.167/0001-01')
+
+    expect(resultado.status).toBe('encontrado')
+    if (resultado.status !== 'encontrado') return
+    expect(resultado.empresa.endereco.logradouro).toBe('DAS FLORES')
+  })
+
+  it('devolve string vazia quando não há nem tipo nem logradouro', async () => {
+    stubFetch(() =>
+      respostaJson({ razao_social: 'X', descricao_tipo_de_logradouro: '', logradouro: '' }),
+    )
+
+    const resultado = await consultarCnpj('33.000.167/0001-01')
+
+    expect(resultado.status).toBe('encontrado')
+    if (resultado.status !== 'encontrado') return
+    expect(resultado.empresa.endereco.logradouro).toBe('')
   })
 
   it('limita cada fonte com timeout, para não somar as esperas em série', async () => {

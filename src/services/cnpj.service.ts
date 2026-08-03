@@ -55,12 +55,24 @@ type RespostaFonte =
   | { tipo: 'falha' }
 
 // Curto de propósito: as fontes são consultadas em série, então o pior caso é
-// o dobro disto. As duas respondem em ~0,6s medidos, e nada aqui bloqueia o
-// salvamento — desistir cedo é melhor do que segurar o formulário.
-const TIMEOUT_MS = 4000
+// o dobro disto (6s). As duas respondem em ~0,6s medidos, o que deixa 5x de
+// folga, e nada aqui bloqueia o salvamento — desistir cedo é melhor do que
+// segurar o formulário.
+const TIMEOUT_MS = 3000
 
 function texto(valor: unknown): string {
   return valor === null || valor === undefined ? '' : String(valor).trim()
+}
+
+// A base da Receita guarda o tipo do logradouro separado do nome, e as duas
+// fontes repassam assim: `descricao_tipo_de_logradouro: "RUA"` + `logradouro:
+// "16"`. Usar só o segundo campo grava um endereço truncado — no caso real da
+// Natur & Vida, literalmente "16". Juntar aqui, no mapper compartilhado, mantém
+// o resultado idêntico venha de qual fonte vier.
+function comporLogradouro(data: Record<string, unknown>): string {
+  return [texto(data.descricao_tipo_de_logradouro), texto(data.logradouro)]
+    .filter(Boolean)
+    .join(' ')
 }
 
 function mapearEmpresa(cnpj: string, data: Record<string, unknown>): EmpresaCnpj {
@@ -72,7 +84,7 @@ function mapearEmpresa(cnpj: string, data: Record<string, unknown>): EmpresaCnpj
     telefone: texto(data.ddd_telefone_1).replace(/\s/g, ''),
     endereco: {
       cep: texto(data.cep).replace(/\D/g, ''),
-      logradouro: texto(data.logradouro),
+      logradouro: comporLogradouro(data),
       numero: texto(data.numero),
       complemento: texto(data.complemento),
       bairro: texto(data.bairro),
