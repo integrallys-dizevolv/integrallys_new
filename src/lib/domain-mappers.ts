@@ -189,6 +189,7 @@ export function mapUsuarioItem(row: Record<string, unknown>) {
     email: String(row.email ?? ''),
     perfil: row.perfil ? String(row.perfil) : undefined,
     status: String(row.status ?? ''),
+    unidadeId: row.unidade_id ? String(row.unidade_id) : null,
     tipoVinculo:
       row.tipo_vinculo === 'parceiro' || row.tipo_vinculo === 'interno'
         ? (row.tipo_vinculo as 'parceiro' | 'interno')

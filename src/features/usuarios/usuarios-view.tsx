@@ -1,21 +1,26 @@
 'use client'
 
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Eye,
+  KeyRound,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Search,
+  Settings,
+  Shield,
+  Trash2,
+  Users,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Eye, KeyRound, MoreVertical, Pencil, Plus, Search, Settings, Shield, Trash2, Users } from 'lucide-react'
-import { useUsuarios, type UsuarioItem } from '@/hooks/use-usuarios'
-import { usePermissoes } from '@/hooks/use-permissoes'
 import { toast } from 'sonner'
 import { DataTable } from '@/components/shared/data-table'
 import { PageHeader } from '@/components/shared/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -24,9 +29,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -34,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -42,6 +53,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePermissoes } from '@/hooks/use-permissoes'
+import { useUnidades } from '@/hooks/use-unidades'
+import { type UsuarioItem, useUsuarios } from '@/hooks/use-usuarios'
 
 type FormState = {
   nome: string
@@ -49,6 +63,7 @@ type FormState = {
   perfil: string
   status: string
   senha: string
+  unidadeId: string
 }
 
 const initialFormState: FormState = {
@@ -57,7 +72,12 @@ const initialFormState: FormState = {
   perfil: '',
   status: 'Ativo',
   senha: '',
+  unidadeId: '',
 }
+
+// Perfis escopados por unidade. master/admin veem todas as unidades e paciente
+// não é escopado — para esses o campo nem aparece, e a API grava null.
+const PERFIS_COM_UNIDADE = new Set(['gestor', 'recepcao', 'especialista'])
 
 const PROFILE_OPTIONS = [
   { value: 'todos', label: 'Todos os perfis' },
@@ -147,6 +167,9 @@ export function UsuariosView() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [form, setForm] = useState<FormState>(initialFormState)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { data: unidades } = useUnidades()
+
+  const exigeUnidade = PERFIS_COM_UNIDADE.has(form.perfil.toLowerCase())
 
   const filteredUsers = useMemo(() => {
     return data.filter((item) => {
@@ -178,6 +201,7 @@ export function UsuariosView() {
         perfil: selectedUser.perfil ?? '',
         status: selectedUser.status,
         senha: '',
+        unidadeId: selectedUser.unidadeId ?? '',
       })
       return
     }
@@ -196,6 +220,14 @@ export function UsuariosView() {
       return
     }
 
+    if (exigeUnidade && !form.unidadeId) {
+      toast.error('Selecione a unidade para gestor, recepção e especialista.')
+      return
+    }
+
+    // Só perfis escopados carregam unidade; para os demais a API grava null.
+    const unidadeId = exigeUnidade ? form.unidadeId : null
+
     setIsSubmitting(true)
     try {
       if (createMode === 'edit' && selectedUser) {
@@ -206,6 +238,7 @@ export function UsuariosView() {
           perfil: form.perfil,
           status: form.status,
           senha: form.senha || undefined,
+          unidadeId,
         })
         toast.success('Usuário atualizado com sucesso.')
       } else {
@@ -215,6 +248,7 @@ export function UsuariosView() {
           perfil: form.perfil,
           status: form.status,
           senha: form.senha,
+          unidadeId,
         })
         toast.success('Usuário criado com sucesso.')
       }
@@ -259,13 +293,15 @@ export function UsuariosView() {
   }, [permissoes, selectedUser])
 
   const selectedUserProfileLabel = selectedUser?.perfil
-    ? PROFILE_LABELS[selectedUser.perfil.toLowerCase()] ?? selectedUser.perfil
+    ? (PROFILE_LABELS[selectedUser.perfil.toLowerCase()] ?? selectedUser.perfil)
     : '--'
 
   const groupedPermissions = useMemo(() => {
     return PERMISSION_SECTIONS.map((section) => ({
       ...section,
-      items: selectedUserPermissions.filter((item) => section.resources.includes(item.recurso as never)),
+      items: selectedUserPermissions.filter((item) =>
+        section.resources.includes(item.recurso as never),
+      ),
     })).filter((section) => section.items.length > 0)
   }, [selectedUserPermissions])
 
@@ -291,7 +327,8 @@ export function UsuariosView() {
           <Select value={profileFilter} onValueChange={setProfileFilter}>
             <SelectTrigger className="w-full sm:w-60 lg:w-72">
               <SelectValue preferPlaceholder placeholder="Filtrar por perfil">
-                {PROFILE_OPTIONS.find((option) => option.value === profileFilter)?.label ?? 'Filtrar por perfil'}
+                {PROFILE_OPTIONS.find((option) => option.value === profileFilter)?.label ??
+                  'Filtrar por perfil'}
               </SelectValue>
             </SelectTrigger>
             <SelectContent className="rounded-xl border-app-border dark:border-app-border-dark">
@@ -303,7 +340,11 @@ export function UsuariosView() {
             </SelectContent>
           </Select>
 
-          <Button variant="outline" onClick={clearFilters} className="h-11 w-full rounded-xl px-4 font-normal whitespace-nowrap sm:w-auto">
+          <Button
+            variant="outline"
+            onClick={clearFilters}
+            className="h-11 w-full rounded-xl px-4 font-normal whitespace-nowrap sm:w-auto"
+          >
             Limpar filtros
           </Button>
         </div>
@@ -322,7 +363,9 @@ export function UsuariosView() {
       </div>
 
       {error && (
-        <p className="text-sm text-[var(--app-danger-text)] dark:text-[var(--app-danger-text)]">{error}</p>
+        <p className="text-sm text-[var(--app-danger-text)] dark:text-[var(--app-danger-text)]">
+          {error}
+        </p>
       )}
 
       <Card className="overflow-hidden rounded-[24px] border-app-border/60 shadow-sm dark:border-app-border-dark">
@@ -332,7 +375,9 @@ export function UsuariosView() {
           </div>
         ) : filteredUsers.length === 0 ? (
           <div className="py-12 text-center">
-            <p className="text-app-text-muted dark:text-white/40">Nenhum usuário encontrado com os filtros aplicados.</p>
+            <p className="text-app-text-muted dark:text-white/40">
+              Nenhum usuário encontrado com os filtros aplicados.
+            </p>
           </div>
         ) : (
           <DataTable data={filteredUsers}>
@@ -341,21 +386,40 @@ export function UsuariosView() {
                 <Table>
                   <TableHeader className="bg-app-bg-secondary/50 dark:bg-app-hover">
                     <TableRow>
-                      <TableHead className="min-w-[220px] text-xs font-medium uppercase tracking-wider text-app-text-secondary">Nome</TableHead>
-                      <TableHead className="min-w-[260px] text-xs font-medium uppercase tracking-wider text-app-text-secondary">E-mail</TableHead>
-                      <TableHead className="min-w-[140px] text-xs font-medium uppercase tracking-wider text-app-text-secondary">Perfil</TableHead>
-                      <TableHead className="min-w-[180px] text-xs font-medium uppercase tracking-wider text-app-text-secondary">Unidade</TableHead>
-                      <TableHead className="min-w-[120px] text-xs font-medium uppercase tracking-wider text-app-text-secondary">Status</TableHead>
-                      <TableHead className="min-w-[110px] text-center text-xs font-medium uppercase tracking-wider text-app-text-secondary">Ações</TableHead>
+                      <TableHead className="min-w-[220px] text-xs font-medium uppercase tracking-wider text-app-text-secondary">
+                        Nome
+                      </TableHead>
+                      <TableHead className="min-w-[260px] text-xs font-medium uppercase tracking-wider text-app-text-secondary">
+                        E-mail
+                      </TableHead>
+                      <TableHead className="min-w-[140px] text-xs font-medium uppercase tracking-wider text-app-text-secondary">
+                        Perfil
+                      </TableHead>
+                      <TableHead className="min-w-[180px] text-xs font-medium uppercase tracking-wider text-app-text-secondary">
+                        Unidade
+                      </TableHead>
+                      <TableHead className="min-w-[120px] text-xs font-medium uppercase tracking-wider text-app-text-secondary">
+                        Status
+                      </TableHead>
+                      <TableHead className="min-w-[110px] text-center text-xs font-medium uppercase tracking-wider text-app-text-secondary">
+                        Ações
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pageData.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-normal text-app-text-primary dark:text-white">{item.nome}</TableCell>
-                        <TableCell className="text-app-text-secondary dark:text-white/70">{item.email}</TableCell>
+                        <TableCell className="font-normal text-app-text-primary dark:text-white">
+                          {item.nome}
+                        </TableCell>
+                        <TableCell className="text-app-text-secondary dark:text-white/70">
+                          {item.email}
+                        </TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
+                          <Badge
+                            variant="secondary"
+                            className="rounded-full px-3 py-1 text-xs font-medium"
+                          >
                             {item.perfil ?? '--'}
                           </Badge>
                         </TableCell>
@@ -380,20 +444,48 @@ export function UsuariosView() {
                                 <MoreVertical className="h-4 w-4 text-app-text-secondary dark:text-white/60" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56 rounded-xl border-app-border p-2 shadow-lg dark:border-app-border-dark dark:bg-app-card-dark">
-                              <DropdownMenuItem onClick={() => { setSelectedUser(item); setIsViewOpen(true) }} className="rounded-lg px-3 py-2.5 font-medium">
+                            <DropdownMenuContent
+                              align="end"
+                              className="w-56 rounded-xl border-app-border p-2 shadow-lg dark:border-app-border-dark dark:bg-app-card-dark"
+                            >
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedUser(item)
+                                  setIsViewOpen(true)
+                                }}
+                                className="rounded-lg px-3 py-2.5 font-medium"
+                              >
                                 <Eye className="mr-2 h-4 w-4" />
                                 Visualizar
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => { setSelectedUser(item); setCreateMode('edit'); setIsCreateOpen(true) }} className="rounded-lg px-3 py-2.5 font-medium">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedUser(item)
+                                  setCreateMode('edit')
+                                  setIsCreateOpen(true)
+                                }}
+                                className="rounded-lg px-3 py-2.5 font-medium"
+                              >
                                 <Pencil className="mr-2 h-4 w-4" />
                                 Editar
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => { setSelectedUser(item); setIsPermissionsOpen(true) }} className="rounded-lg px-3 py-2.5 font-medium">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedUser(item)
+                                  setIsPermissionsOpen(true)
+                                }}
+                                className="rounded-lg px-3 py-2.5 font-medium"
+                              >
                                 <KeyRound className="mr-2 h-4 w-4" />
                                 Alterar permissões
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => { setSelectedUser(item); setIsDeleteOpen(true) }} className="rounded-lg px-3 py-2.5 font-medium text-[var(--app-danger-text)] dark:text-[var(--app-danger-text)]">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedUser(item)
+                                  setIsDeleteOpen(true)
+                                }}
+                                className="rounded-lg px-3 py-2.5 font-medium text-[var(--app-danger-text)] dark:text-[var(--app-danger-text)]"
+                              >
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Inativar
                               </DropdownMenuItem>
@@ -411,7 +503,10 @@ export function UsuariosView() {
       </Card>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent size="lg" className="gap-0 overflow-hidden rounded-[24px] border border-app-border p-0 dark:border-app-border-dark">
+        <DialogContent
+          size="lg"
+          className="gap-0 overflow-hidden rounded-[24px] border border-app-border p-0 dark:border-app-border-dark"
+        >
           <div className="bg-app-card dark:bg-app-card-dark">
             <DialogHeader className="space-y-2 px-6 pb-4 pt-6">
               <DialogTitle className="text-2xl font-normal text-app-text-primary dark:text-white">
@@ -427,45 +522,91 @@ export function UsuariosView() {
             <div className="px-6 py-4">
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="space-y-3">
-                <Label>Nome</Label>
-                <Input value={form.nome} onChange={(e) => setForm((c) => ({ ...c, nome: e.target.value }))} placeholder="Nome completo" className="h-12 rounded-[12px]" />
-              </div>
-              <div className="space-y-3">
-                <Label>E-mail</Label>
-                <Input value={form.email} onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))} placeholder="usuario@empresa.com" className="h-12 rounded-[12px]" />
-              </div>
-              <div className="space-y-3">
-                <Label>Perfil</Label>
-                <Select value={form.perfil} onValueChange={(value) => setForm((c) => ({ ...c, perfil: value }))}>
-                  <SelectTrigger className="h-12 rounded-[12px]">
-                    <SelectValue placeholder="Selecione um perfil" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROFILE_OPTIONS.filter((option) => option.value !== 'todos').map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-3">
-                <Label>Status</Label>
-                <Select value={form.status} onValueChange={(value) => setForm((c) => ({ ...c, status: value }))}>
-                  <SelectTrigger className="h-12 rounded-[12px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Ativo">Ativo</SelectItem>
-                    <SelectItem value="Inativo">Inativo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  <Label>Nome</Label>
+                  <Input
+                    value={form.nome}
+                    onChange={(e) => setForm((c) => ({ ...c, nome: e.target.value }))}
+                    placeholder="Nome completo"
+                    className="h-12 rounded-[12px]"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label>E-mail</Label>
+                  <Input
+                    value={form.email}
+                    onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))}
+                    placeholder="usuario@empresa.com"
+                    className="h-12 rounded-[12px]"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label>Perfil</Label>
+                  <Select
+                    value={form.perfil}
+                    onValueChange={(value) => setForm((c) => ({ ...c, perfil: value }))}
+                  >
+                    <SelectTrigger className="h-12 rounded-[12px]">
+                      <SelectValue placeholder="Selecione um perfil" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROFILE_OPTIONS.filter((option) => option.value !== 'todos').map(
+                        (option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-3">
+                  <Label>Status</Label>
+                  <Select
+                    value={form.status}
+                    onValueChange={(value) => setForm((c) => ({ ...c, status: value }))}
+                  >
+                    <SelectTrigger className="h-12 rounded-[12px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Ativo">Ativo</SelectItem>
+                      <SelectItem value="Inativo">Inativo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {exigeUnidade && (
+                  <div className="space-y-3 md:col-span-2">
+                    <Label>
+                      Unidade <span className="text-[var(--app-danger-text)]">*</span>
+                    </Label>
+                    <Select
+                      value={form.unidadeId}
+                      onValueChange={(value) => setForm((c) => ({ ...c, unidadeId: value }))}
+                    >
+                      <SelectTrigger className="h-12 rounded-[12px]">
+                        <SelectValue placeholder="Selecione a unidade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {unidades.map((unidade) => (
+                          <SelectItem key={unidade.id} value={unidade.id}>
+                            {unidade.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-3 md:col-span-2">
                   <Label>{createMode === 'edit' ? 'Nova senha (opcional)' : 'Senha inicial'}</Label>
                   <Input
                     type="password"
                     value={form.senha}
                     onChange={(e) => setForm((c) => ({ ...c, senha: e.target.value }))}
-                    placeholder={createMode === 'edit' ? 'Preencha apenas se quiser alterar' : 'Mínimo de 4 caracteres'}
+                    placeholder={
+                      createMode === 'edit'
+                        ? 'Preencha apenas se quiser alterar'
+                        : 'Mínimo de 4 caracteres'
+                    }
                     className="h-12 rounded-[12px]"
                   />
                 </div>
@@ -473,11 +614,25 @@ export function UsuariosView() {
             </div>
 
             <DialogFooter className="px-6 py-6 pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} className="h-11 rounded-[12px] px-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateOpen(false)}
+                className="h-11 rounded-[12px] px-6"
+              >
                 Cancelar
               </Button>
-              <Button type="button" onClick={() => void handleSave()} disabled={isSubmitting} className="h-11 rounded-[12px] px-6 text-white">
-                {isSubmitting ? 'Salvando...' : createMode === 'edit' ? 'Salvar alterações' : 'Salvar cadastro'}
+              <Button
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={isSubmitting}
+                className="h-11 rounded-[12px] px-6 text-white"
+              >
+                {isSubmitting
+                  ? 'Salvando...'
+                  : createMode === 'edit'
+                    ? 'Salvar alterações'
+                    : 'Salvar cadastro'}
               </Button>
             </DialogFooter>
           </div>
@@ -485,49 +640,69 @@ export function UsuariosView() {
       </Dialog>
 
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent size="lg" className="gap-0 overflow-hidden rounded-[24px] border border-app-border p-0 dark:border-app-border-dark">
+        <DialogContent
+          size="lg"
+          className="gap-0 overflow-hidden rounded-[24px] border border-app-border p-0 dark:border-app-border-dark"
+        >
           <div className="bg-app-card dark:bg-app-card-dark">
             <DialogHeader className="space-y-2 px-6 pb-4 pt-6">
-              <DialogTitle className="text-xl font-normal text-app-text-primary dark:text-white">Visualizar usuário</DialogTitle>
-              <DialogDescription className="text-sm text-app-text-muted">Detalhes completos do usuário selecionado.</DialogDescription>
+              <DialogTitle className="text-xl font-normal text-app-text-primary dark:text-white">
+                Visualizar usuário
+              </DialogTitle>
+              <DialogDescription className="text-sm text-app-text-muted">
+                Detalhes completos do usuário selecionado.
+              </DialogDescription>
             </DialogHeader>
 
             {selectedUser && (
               <div className="grid grid-cols-1 gap-4 px-6 py-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-normal text-app-text-primary dark:text-white">Nome completo</Label>
+                  <Label className="text-sm font-normal text-app-text-primary dark:text-white">
+                    Nome completo
+                  </Label>
                   <div className="flex h-11 items-center rounded-lg border border-app-border bg-app-bg-secondary px-3 text-sm font-normal text-app-text-primary dark:border-app-border-dark dark:bg-app-card/5 dark:text-white/80">
                     {selectedUser.nome}
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-normal text-app-text-primary dark:text-white">E-mail</Label>
+                  <Label className="text-sm font-normal text-app-text-primary dark:text-white">
+                    E-mail
+                  </Label>
                   <div className="flex h-11 items-center rounded-lg border border-app-border bg-app-bg-secondary px-3 text-sm font-normal text-app-text-primary dark:border-app-border-dark dark:bg-app-card/5 dark:text-white/80">
                     {selectedUser.email}
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-normal text-app-text-primary dark:text-white">Perfil</Label>
+                  <Label className="text-sm font-normal text-app-text-primary dark:text-white">
+                    Perfil
+                  </Label>
                   <div className="flex h-11 items-center rounded-lg border border-app-border bg-app-bg-secondary px-3 text-sm font-normal text-app-text-primary dark:border-app-border-dark dark:bg-app-card/5 dark:text-white/80">
                     {selectedUser.perfil ?? '--'}
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-normal text-app-text-primary dark:text-white">Unidade</Label>
+                  <Label className="text-sm font-normal text-app-text-primary dark:text-white">
+                    Unidade
+                  </Label>
                   <div className="flex h-11 items-center rounded-lg border border-app-border bg-app-bg-secondary px-3 text-sm font-normal text-app-text-primary dark:border-app-border-dark dark:bg-app-card/5 dark:text-white/80">
                     --
                   </div>
                 </div>
 
                 <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-sm font-normal text-app-text-primary dark:text-white">Status</Label>
+                  <Label className="text-sm font-normal text-app-text-primary dark:text-white">
+                    Status
+                  </Label>
                   <div className="flex h-11 items-center rounded-lg border border-app-border bg-app-bg-secondary px-3 text-sm dark:border-app-border-dark dark:bg-app-card/5">
-                    <Badge className={selectedUser.status === 'Ativo'
-                      ? 'bg-app-primary text-white shadow-sm font-normal'
-                      : 'border border-[#D0D5DD] bg-[#F2F4F7] text-[#3b414e] font-normal dark:border-app-border-dark dark:bg-app-card-dark dark:text-white/70'}
+                    <Badge
+                      className={
+                        selectedUser.status === 'Ativo'
+                          ? 'bg-app-primary text-white shadow-sm font-normal'
+                          : 'border border-[#D0D5DD] bg-[#F2F4F7] text-[#3b414e] font-normal dark:border-app-border-dark dark:bg-app-card-dark dark:text-white/70'
+                      }
                     >
                       {selectedUser.status}
                     </Badge>
@@ -537,7 +712,10 @@ export function UsuariosView() {
             )}
 
             <DialogFooter className="px-6 py-6 pt-4">
-              <Button onClick={() => setIsViewOpen(false)} className="h-10 rounded-integrallys px-5 text-white">
+              <Button
+                onClick={() => setIsViewOpen(false)}
+                className="h-10 rounded-integrallys px-5 text-white"
+              >
                 Fechar
               </Button>
             </DialogFooter>
@@ -546,10 +724,15 @@ export function UsuariosView() {
       </Dialog>
 
       <Dialog open={isPermissionsOpen} onOpenChange={setIsPermissionsOpen}>
-        <DialogContent size="lg" className="gap-0 overflow-hidden rounded-[24px] border border-app-border p-0 dark:border-app-border-dark">
+        <DialogContent
+          size="lg"
+          className="gap-0 overflow-hidden rounded-[24px] border border-app-border p-0 dark:border-app-border-dark"
+        >
           <div className="bg-app-card dark:bg-app-card-dark">
             <DialogHeader className="space-y-2 px-6 pb-4 pt-6">
-              <DialogTitle className="text-xl font-normal text-app-text-primary dark:text-white">Permissões do usuário</DialogTitle>
+              <DialogTitle className="text-xl font-normal text-app-text-primary dark:text-white">
+                Permissões do usuário
+              </DialogTitle>
               <DialogDescription className="text-sm text-app-text-muted">
                 Resumo das permissões herdadas pelo perfil atual do usuário selecionado.
               </DialogDescription>
@@ -563,17 +746,26 @@ export function UsuariosView() {
                       <Shield className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="text-base font-normal text-app-text-primary dark:text-white">{selectedUser.nome}</p>
+                      <p className="text-base font-normal text-app-text-primary dark:text-white">
+                        {selectedUser.nome}
+                      </p>
                       <p className="text-sm text-app-text-muted">{selectedUser.email}</p>
                     </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="rounded-full border-app-border px-3 py-1 text-xs font-normal text-app-text-secondary dark:border-app-border-dark dark:text-white/75">
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-app-border px-3 py-1 text-xs font-normal text-app-text-secondary dark:border-app-border-dark dark:text-white/75"
+                    >
                       Perfil: {selectedUserProfileLabel}
                     </Badge>
-                    <Badge variant="outline" className="rounded-full border-app-border px-3 py-1 text-xs font-normal text-app-text-secondary dark:border-app-border-dark dark:text-white/75">
-                      {selectedUserPermissions.reduce((acc, item) => acc + item.acoes.length, 0)} acessos
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-app-border px-3 py-1 text-xs font-normal text-app-text-secondary dark:border-app-border-dark dark:text-white/75"
+                    >
+                      {selectedUserPermissions.reduce((acc, item) => acc + item.acoes.length, 0)}{' '}
+                      acessos
                     </Badge>
                   </div>
                 </div>
@@ -590,16 +782,27 @@ export function UsuariosView() {
                   <div className="space-y-4">
                     {groupedPermissions.map((section) => {
                       const SectionIcon = section.icon
-                      const totalActions = section.items.reduce((acc, item) => acc + item.acoes.length, 0)
+                      const totalActions = section.items.reduce(
+                        (acc, item) => acc + item.acoes.length,
+                        0,
+                      )
 
                       return (
-                        <Card key={section.id} className="rounded-[18px] border border-app-border/80 p-5 shadow-sm dark:border-app-border-dark/80">
+                        <Card
+                          key={section.id}
+                          className="rounded-[18px] border border-app-border/80 p-5 shadow-sm dark:border-app-border-dark/80"
+                        >
                           <div className="mb-4 flex items-center justify-between gap-4">
                             <div className="flex items-center gap-2">
                               <SectionIcon className="h-4.5 w-4.5 text-[var(--app-primary)] dark:text-[#4ADE80]" />
-                              <h5 className="font-normal text-app-text-primary dark:text-white">{section.title}</h5>
+                              <h5 className="font-normal text-app-text-primary dark:text-white">
+                                {section.title}
+                              </h5>
                             </div>
-                            <Badge variant="secondary" className="rounded-md bg-app-bg-secondary px-3 py-1 text-xs font-normal text-app-text-secondary dark:bg-app-card/10 dark:text-white">
+                            <Badge
+                              variant="secondary"
+                              className="rounded-md bg-app-bg-secondary px-3 py-1 text-xs font-normal text-app-text-secondary dark:bg-app-card/10 dark:text-white"
+                            >
                               {totalActions} ações
                             </Badge>
                           </div>
@@ -615,7 +818,9 @@ export function UsuariosView() {
                                     <CheckCircle2 className="h-5 w-5 fill-[var(--app-info-bg)] text-[var(--app-primary)] dark:fill-[var(--app-primary)]/20 dark:text-[#4ADE80]" />
                                     <div className="flex flex-col">
                                       <span className="text-sm font-normal text-app-text-primary dark:text-gray-200">
-                                        {RESOURCE_LABELS[grupo.recurso] ?? grupo.recurso ?? 'Sem recurso identificado'}
+                                        {RESOURCE_LABELS[grupo.recurso] ??
+                                          grupo.recurso ??
+                                          'Sem recurso identificado'}
                                       </span>
                                       <span className="text-xs text-app-text-muted dark:text-white/50">
                                         {ACTION_LABELS[acao] ?? acao}
@@ -636,7 +841,10 @@ export function UsuariosView() {
             )}
 
             <DialogFooter className="px-6 py-6 pt-4">
-              <Button onClick={() => setIsPermissionsOpen(false)} className="h-10 rounded-integrallys px-5 text-white">
+              <Button
+                onClick={() => setIsPermissionsOpen(false)}
+                className="h-10 rounded-integrallys px-5 text-white"
+              >
                 Fechar
               </Button>
             </DialogFooter>
@@ -645,15 +853,21 @@ export function UsuariosView() {
       </Dialog>
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent size="sm" className="gap-0 overflow-hidden rounded-[24px] border border-app-border p-0 dark:border-app-border-dark">
+        <DialogContent
+          size="sm"
+          className="gap-0 overflow-hidden rounded-[24px] border border-app-border p-0 dark:border-app-border-dark"
+        >
           <div className="bg-app-card dark:bg-app-card-dark">
             <DialogHeader className="items-center space-y-2 px-6 pb-4 pt-8 text-center">
               <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-full app-status-danger dark:app-status-danger0/10">
                 <AlertTriangle className="h-7 w-7 text-[var(--app-danger-text)]" />
               </div>
-              <DialogTitle className="text-xl font-bold text-app-text-primary dark:text-white">Confirmar Inativação</DialogTitle>
+              <DialogTitle className="text-xl font-bold text-app-text-primary dark:text-white">
+                Confirmar Inativação
+              </DialogTitle>
               <DialogDescription className="max-w-xs text-app-text-muted">
-                Deseja realmente inativar este usuário? O registro continuará no banco, mas o acesso ficará bloqueado até nova ativação.
+                Deseja realmente inativar este usuário? O registro continuará no banco, mas o acesso
+                ficará bloqueado até nova ativação.
               </DialogDescription>
             </DialogHeader>
 
@@ -666,10 +880,20 @@ export function UsuariosView() {
             )}
 
             <DialogFooter className="px-6 pb-8 pt-2 sm:justify-center">
-              <Button type="button" variant="outline" onClick={() => setIsDeleteOpen(false)} className="h-11 rounded-[12px] px-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsDeleteOpen(false)}
+                className="h-11 rounded-[12px] px-6"
+              >
                 Cancelar
               </Button>
-              <Button type="button" onClick={() => void handleDelete()} disabled={isSubmitting} className="h-11 rounded-[12px] bg-[var(--app-danger-text)] px-6 text-white">
+              <Button
+                type="button"
+                onClick={() => void handleDelete()}
+                disabled={isSubmitting}
+                className="h-11 rounded-[12px] bg-[var(--app-danger-text)] px-6 text-white"
+              >
                 Inativar
               </Button>
             </DialogFooter>

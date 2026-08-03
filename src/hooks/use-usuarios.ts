@@ -10,6 +10,8 @@ export interface UsuarioItem {
   email: string
   perfil?: string
   status: string
+  /** null para master/admin/paciente — perfis que não são escopados por unidade. */
+  unidadeId?: string | null
   tipoVinculo?: 'interno' | 'parceiro'
   especialistasPermitidos?: string[] | null
 }
@@ -21,6 +23,8 @@ export interface UsuarioInput {
   perfil: string
   status?: string
   senha?: string
+  /** Obrigatório para gestor/recepcao/especialista — a API recusa sem. */
+  unidadeId?: string | null
   tipoVinculo?: 'interno' | 'parceiro'
   especialistasPermitidos?: string[] | null
 }
