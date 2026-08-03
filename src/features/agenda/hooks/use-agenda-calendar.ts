@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react'
 import type { ViewMode, AgendaSlot } from '../agenda.types'
 import {
-  buildDaySlots,
   buildWeekDays,
   buildMonthDays,
   filterAgendaItemsByStatus,
@@ -25,7 +24,6 @@ export function useAgendaCalendar(agendaSlots: AgendaSlot[]) {
     [currentDate],
   )
 
-  const daySlots = useMemo(() => buildDaySlots(), [])
   const weekDays = useMemo(() => buildWeekDays(currentDate), [currentDate])
   const monthDays = useMemo(() => buildMonthDays(currentDate), [currentDate])
 
@@ -109,7 +107,6 @@ export function useAgendaCalendar(agendaSlots: AgendaSlot[]) {
     selectedFilter,
     setSelectedFilter,
     formattedCurrentDate,
-    daySlots,
     weekDays,
     monthDays,
     dayAgendaSlots,

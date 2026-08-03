@@ -35,6 +35,8 @@ export interface AgendaInput {
   id?: string
   pacienteId?: string
   profissional?: string
+  /** UUID do profissional (item 15a) — preferido pelo backend sobre o nome. */
+  profissionalId?: string
   data: string
   horario: string
   horarioFim?: string

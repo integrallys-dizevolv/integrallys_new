@@ -523,7 +523,8 @@
       "lote",
       "validade",
       "preco_custo",
-      "preco_venda"
+      "preco_venda",
+      "unidade_medida"
     ],
     "profissional_horarios": [
       "id",
@@ -663,7 +664,8 @@
       "endereco",
       "bairro",
       "cep",
-      "estado"
+      "estado",
+      "cidade"
     ],
     "v_agendamento_pagamento_resumo": [
       "agendamento_id",

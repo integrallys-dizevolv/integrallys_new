@@ -1,4 +1,4 @@
-import type { AgendaSlot, DayGridSlot, MonthDayCell, ViewMode, WeekDayData } from './agenda.types'
+import type { AgendaSlot, MonthDayCell, ViewMode, WeekDayData } from './agenda.types'
 
 export function formatAgendaDate(date: Date, viewMode: ViewMode) {
   const formatter = new Intl.DateTimeFormat(
@@ -106,16 +106,6 @@ export function filterAgendaItemsByStatus(items: AgendaSlot[], filter: string) {
     default:
       return items
   }
-}
-
-export function buildDaySlots() {
-  const slots: DayGridSlot[] = []
-  for (let hour = 8; hour < 18; hour += 1) {
-    const h = hour.toString().padStart(2, '0')
-    slots.push({ id: `${h}-00`, time: `${h}:00` })
-    slots.push({ id: `${h}-30`, time: `${h}:30` })
-  }
-  return slots
 }
 
 export function buildWeekDays(baseDate: Date): WeekDayData[] {

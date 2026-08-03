@@ -8,12 +8,14 @@ export interface EstoqueItem {
   id: string
   produto: string
   categoria: string
+  sku?: string
   quantidade: number
   estoqueMinimo: number
   lote?: string
   validade?: string
   precoCusto?: number
   precoVenda?: number
+  unidadeMedida?: string
   status: string
 }
 
@@ -21,7 +23,14 @@ export interface EstoqueInput {
   id?: string
   produto: string
   categoria: string
+  sku?: string | null
   quantidade: number
+  estoqueMinimo?: number | null
+  lote?: string | null
+  validade?: string | null
+  precoCusto?: number | null
+  precoVenda?: number | null
+  unidadeMedida?: string | null
   status?: string
 }
 

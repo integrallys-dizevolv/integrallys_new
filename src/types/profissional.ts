@@ -46,6 +46,7 @@ export interface ProfissionalItem {
   estadoCivil?: string | null
   endereco?: string | null
   bairro?: string | null
+  cidade?: string | null
   cep?: string | null
   estado?: string | null
   tipoVinculo: ProfissionalTipoVinculo
@@ -76,6 +77,7 @@ export interface ProfissionalInput {
   estadoCivil?: string | null
   endereco?: string | null
   bairro?: string | null
+  cidade?: string | null
   cep?: string | null
   estado?: string | null
   tipoVinculo: ProfissionalTipoVinculo

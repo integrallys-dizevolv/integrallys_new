@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
-import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 import { gerarSlots, type HorarioRegra } from './gerar-slots'
 
 interface GerarBody {
@@ -22,6 +22,29 @@ function parseDateLocal(value: string): Date | null {
   const date = new Date(Number(y), Number(m) - 1, Number(d))
   if (Number.isNaN(date.getTime())) return null
   return date
+}
+
+// Enumera as datas YYYY-MM-DD do período que casam com o filtro de dias da semana
+// (null = todos os dias). Espelha o cursor de gerarSlots para alinhar o escopo da
+// limpeza (item 13) com o da geração.
+function enumerarDatas(
+  dataInicio: Date,
+  dataFim: Date,
+  diasSemanaFiltro: number[] | null,
+): string[] {
+  const filtro = diasSemanaFiltro && diasSemanaFiltro.length > 0 ? new Set(diasSemanaFiltro) : null
+  const datas: string[] = []
+  const cursor = new Date(dataInicio.getTime())
+  while (cursor.getTime() <= dataFim.getTime()) {
+    if (!filtro || filtro.has(cursor.getDay())) {
+      const y = cursor.getFullYear()
+      const m = String(cursor.getMonth() + 1).padStart(2, '0')
+      const d = String(cursor.getDate()).padStart(2, '0')
+      datas.push(`${y}-${m}-${d}`)
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return datas
 }
 
 export async function POST(request: NextRequest) {
@@ -75,6 +98,18 @@ export async function POST(request: NextRequest) {
 
   const unidadeId = especialistaRow.unidade_id ? String(especialistaRow.unidade_id) : null
 
+  // SEC — chamador escopado (gestor/recepção/especialista) só gera agenda da PRÓPRIA
+  // unidade. Sem isto, um gestor da Unidade A poderia gerar agenda de um profissional
+  // da Unidade B sabendo o especialistaId (mesmo IDOR de excluir/gerar-contrato).
+  // master/admin têm scopedUnit null → sem restrição.
+  const scopedUnit = await getScopedUnitId(session)
+  if (scopedUnit.error) {
+    return supabaseErrorResponse(scopedUnit.error, 'Falha ao identificar unidade do usuário')
+  }
+  if (scopedUnit.unidadeId && scopedUnit.unidadeId !== unidadeId) {
+    return serverErrorResponse('Profissional de outra unidade', 'UNIT_MISMATCH', 403)
+  }
+
   // Grade do profissional (migration 079) — fonte dos dias/janelas/duração.
   const { data: horariosRows, error: horariosError } = await supabase
     .from('profissional_horarios')
@@ -115,6 +150,34 @@ export async function POST(request: NextRequest) {
 
   if (slots.length === 0) {
     return NextResponse.json({ gerados: 0, pulados, alertas })
+  }
+
+  // Item 13 — regeneração idempotente: antes de inserir, remove os slots LIVRES
+  // (status='Disponível' E paciente_id null) do profissional no período e dias
+  // solicitados. Nunca toca em linha com paciente vinculado nem em outro status,
+  // então agendamentos reais ficam preservados. Sem esta limpeza, regerar com uma
+  // duração nova deixava os slots antigos (ex.: 60min) intactos ao lado dos novos.
+  //
+  // Escopo por unidade_id ESPELHA o que a geração grava (unidadeId da unidade
+  // principal do profissional). Como um profissional pode atuar em >1 unidade
+  // (item 7a / profissional_unidades), limpar sem esse filtro apagaria os
+  // 'Disponível' dele em OUTRAS unidades nas mesmas datas. unidadeId null precisa
+  // de IS NULL (`.eq(col, null)` nunca casa no PostgREST).
+  const datasParaLimpar = enumerarDatas(dataInicio, dataFim, diasSemanaFiltro)
+  if (datasParaLimpar.length > 0) {
+    const limpezaQuery = supabase
+      .from('agendamentos')
+      .delete()
+      .eq('profissional_id', especialistaId)
+      .in('data_agendamento', datasParaLimpar)
+      .eq('status', 'Disponível')
+      .is('paciente_id', null)
+    const { error: limpezaError } = await (unidadeId
+      ? limpezaQuery.eq('unidade_id', unidadeId)
+      : limpezaQuery.is('unidade_id', null))
+    if (limpezaError) {
+      return supabaseErrorResponse(limpezaError, 'Falha ao limpar agenda anterior do período')
+    }
   }
 
   const datasUnicas = Array.from(new Set(slots.map((s) => s.data)))

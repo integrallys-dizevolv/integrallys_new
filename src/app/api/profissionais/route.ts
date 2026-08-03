@@ -114,6 +114,7 @@ function validateProfissionalBody(body: ProfissionalBody, requirePassword: boole
       estadoCivil: String(body.estadoCivil ?? '').trim() || null,
       endereco: String(body.endereco ?? '').trim() || null,
       bairro: String(body.bairro ?? '').trim() || null,
+      cidade: String(body.cidade ?? '').trim() || null,
       cep: String(body.cep ?? '').trim() || null,
       estado: String(body.estado ?? '').trim() || null,
       unidadeId: String(body.unidadeId ?? body.unidade_id ?? '').trim() || null,
@@ -133,7 +134,7 @@ async function listProfissionais(session: Awaited<ReturnType<typeof getRequestAu
   const { data: profissionais, error } = await supabase
     .from('usuarios')
     .select(
-      'id,nome,email,telefone,conselho,crm,cpf,data_nascimento,rg,estado_civil,endereco,bairro,cep,estado,status,tipo_vinculo,unidade_id',
+      'id,nome,email,telefone,conselho,crm,cpf,data_nascimento,rg,estado_civil,endereco,bairro,cidade,cep,estado,status,tipo_vinculo,unidade_id',
     )
     .eq('perfil', 'especialista')
     .order('nome', { ascending: true })
@@ -393,6 +394,7 @@ export async function POST(request: NextRequest) {
       estado_civil: payload.estadoCivil,
       endereco: payload.endereco,
       bairro: payload.bairro,
+      cidade: payload.cidade,
       cep: payload.cep,
       estado: payload.estado,
       unidade_id: payload.unidadeId,
@@ -506,6 +508,7 @@ export async function PUT(request: NextRequest) {
     estado_civil: payload.estadoCivil,
     endereco: payload.endereco,
     bairro: payload.bairro,
+    cidade: payload.cidade,
     cep: payload.cep,
     estado: payload.estado,
     unidade_id: payload.unidadeId,

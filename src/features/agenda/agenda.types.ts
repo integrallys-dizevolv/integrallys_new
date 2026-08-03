@@ -37,11 +37,6 @@ export interface AgendaSlot {
   motivoEncaixe?: string
 }
 
-export interface DayGridSlot {
-  id: string
-  time: string
-}
-
 export interface WeekDayData {
   key: string
   date: Date

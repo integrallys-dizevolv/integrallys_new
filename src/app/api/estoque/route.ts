@@ -12,6 +12,18 @@ import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/reques
 // antigos. Outros endpoints (`getScopedAgendaContext` em agenda/route.ts)
 // continuam locais porque retornam mais que `unidadeId`.
 
+// Item 14 — parsing dos campos opcionais do cadastro de produto.
+function parseNumeric(value: unknown): number | null {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+function parseText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const t = value.trim()
+  return t.length > 0 ? t : null
+}
+
 async function listEstoque(request: NextRequest, session: Awaited<ReturnType<typeof getRequestAuth>>) {
   const supabase = getAppSupabase()
   const scopedUnit = await getScopedUnitId(session)
@@ -21,7 +33,7 @@ async function listEstoque(request: NextRequest, session: Awaited<ReturnType<typ
 
   let query = supabase
     .from('produtos_estoque')
-    .select('id,nome,categoria,quantidade,estoque_minimo,lote,validade,preco_custo,preco_venda,status,unidade_id')
+    .select('id,nome,categoria,sku,quantidade,estoque_minimo,lote,validade,preco_custo,preco_venda,unidade_medida,status,unidade_id')
     .order('nome', { ascending: true })
 
   if (scopedUnit.unidadeId) {
@@ -381,10 +393,21 @@ export async function POST(request: NextRequest) {
     return supabaseErrorResponse(scopedUnitCreate.error, 'Falha ao cadastrar produto')
   }
 
+  // Item 14 — grava as colunas que já existiam no schema mas nunca eram escritas
+  // por nenhum formulário (sku/preços/lote/validade/estoque_minimo) + a nova
+  // unidade_medida. O PUT segue intocado de propósito: sem esses campos no modal de
+  // edição, gravá-los no update apagaria os valores (o mesmo bug "some na edição").
   const { error } = await supabase.from('produtos_estoque').insert({
     nome: body.produto,
     categoria: body.categoria,
+    sku: parseText(body.sku),
     quantidade: Number(body.quantidade ?? 0),
+    estoque_minimo: parseNumeric(body.estoqueMinimo) ?? 0,
+    lote: parseText(body.lote),
+    validade: parseText(body.validade),
+    preco_custo: parseNumeric(body.precoCusto),
+    preco_venda: parseNumeric(body.precoVenda),
+    unidade_medida: parseText(body.unidadeMedida),
     status: body.status ?? 'Disponível',
     unidade_id: scopedUnitCreate.unidadeId ?? body.unidadeId ?? null,
   })

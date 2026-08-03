@@ -12,6 +12,7 @@ import {
   FileText,
   Lock,
   Plus,
+  Trash2,
   Users,
 } from 'lucide-react'
 import { useAgenda } from '@/hooks/use-agenda'
@@ -60,6 +61,7 @@ import {
   EditarCompromissoModal,
   ChamarEspecialistaModal,
   EmitirCobrancaModal,
+  ExcluirAgendaModal,
   FichaPacienteModal,
   GerarAgendaModal,
   ListaEsperaModal,
@@ -107,6 +109,7 @@ export function AgendaView() {
   const [isEditarCompromissoOpen, setIsEditarCompromissoOpen] = useState(false)
   const [isCancelarCompromissoOpen, setIsCancelarCompromissoOpen] = useState(false)
   const [isGerarAgendaOpen, setIsGerarAgendaOpen] = useState(false)
+  const [isExcluirAgendaOpen, setIsExcluirAgendaOpen] = useState(false)
   const [novoAgendamentoPreset, setNovoAgendamentoPreset] = useState<{
     data?: string
     horario?: string
@@ -309,9 +312,15 @@ export function AgendaView() {
     motivoEncaixe?: string
   }) => {
     try {
+      // Item 15a — envia o UUID do profissional (resolvido do nome escolhido no
+      // dropdown) para o backend não depender de casar por nome nem cair no criador.
+      const profissionalId = agendaProfessionals.find(
+        (p) => p.nome === payload.profissional,
+      )?.id
       await createAgendamento({
         pacienteId: payload.pacienteId,
         profissional: payload.profissional,
+        profissionalId,
         data: payload.data,
         horario: payload.horario,
         status: 'Agendado',
@@ -447,6 +456,18 @@ export function AgendaView() {
     }
   }
 
+  const handleExcluirAgenda = async (payload: {
+    especialistaId: string
+    dataInicio: string
+    dataFim: string
+    diasSemana: number[]
+    justificativa: string
+  }) => {
+    const result = await api.post<{ excluidos: number }>('/api/agenda/excluir', payload)
+    await reloadAgenda()
+    return { excluidos: result.excluidos }
+  }
+
   const totalItems =
     activeTab === 'global'
       ? calendar.viewMode === 'semana'
@@ -531,6 +552,14 @@ export function AgendaView() {
               >
                 <Calendar className="h-4 w-4" />
                 Gerar agenda
+              </Button>
+              <Button
+                variant="outline"
+                className="h-10 px-4 rounded-xl gap-2 font-normal border-app-border dark:border-app-border-dark hover:border-red-400 hover:text-red-600 whitespace-nowrap"
+                onClick={() => setIsExcluirAgendaOpen(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir agenda
               </Button>
               <Button
                 variant="outline"
@@ -832,28 +861,18 @@ export function AgendaView() {
             )}
             {activeTab === 'global' && !isLoading && calendar.viewMode === 'dia' && (
               <AgendaDayView
-                daySlots={calendar.daySlots}
                 dayFilteredItems={calendar.dayFilteredItems}
                 bloqueios={bloqueios}
                 bloqueiosProfissionais={agendaProfessionals}
                 currentDate={calendar.currentDate}
-                selectedFilter={calendar.selectedFilter}
                 selectedProfessional={
                   isEspecialista ? (user?.name ?? 'todos') : selectedProfessional
-                }
-                professionalOptions={
-                  isEspecialista ? (user?.name ? [user.name] : []) : professionalOptions
                 }
                 showDaySlots={showDaySlots}
                 onOpenSlotModal={actions.openSlotModal}
                 onOpenCharge={actions.handleOpenCharge}
                 onCallSpecialist={(slot) => actions.openSlotModal('chamar-especialista', slot)}
                 onStatusChange={actions.handleStatusChange}
-                onSelectProfessional={setSelectedProfessional}
-                onOpenNewModal={() => {
-                  setNovoAgendamentoPreset({})
-                  actions.setActiveModal('novo')
-                }}
                 onOpenAvailableSlot={(slot) => {
                   setNovoAgendamentoPreset({
                     data: actions.parseAgendaDate(slot.data),
@@ -1257,6 +1276,11 @@ export function AgendaView() {
         isOpen={isGerarAgendaOpen}
         onClose={() => setIsGerarAgendaOpen(false)}
         onSave={handleGerarAgenda}
+      />
+      <ExcluirAgendaModal
+        isOpen={isExcluirAgendaOpen}
+        onClose={() => setIsExcluirAgendaOpen(false)}
+        onSave={handleExcluirAgenda}
       />
       <VisualizarConsultaModal
         open={actions.activeModal === 'visualizar'}

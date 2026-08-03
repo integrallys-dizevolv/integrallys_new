@@ -51,7 +51,9 @@ export function mapAgendaItem(row: Record<string, unknown>) {
     observacoes: row.observacoes ? String(row.observacoes) : undefined,
     pagamento: row.pagamento_situacao ? String(row.pagamento_situacao) : undefined,
     totalPago: row.total_pago != null ? Number(row.total_pago) : undefined,
-    dataPagamentoAnterior: row.data_ultimo_pagamento ? String(row.data_ultimo_pagamento) : undefined,
+    dataPagamentoAnterior: row.data_ultimo_pagamento
+      ? String(row.data_ultimo_pagamento)
+      : undefined,
     tipoEncaixe: row.tipo_encaixe ? String(row.tipo_encaixe) : undefined,
     foraJanela: row.fora_janela === true,
     motivoEncaixe: row.motivo_encaixe ? String(row.motivo_encaixe) : undefined,
@@ -103,12 +105,14 @@ export function mapEstoqueItem(row: Record<string, unknown>) {
     id: String(row.id ?? ''),
     produto: String(row.nome ?? ''),
     categoria: String(row.categoria ?? ''),
+    sku: row.sku ? String(row.sku) : undefined,
     quantidade: Number(row.quantidade ?? 0),
     estoqueMinimo: Number(row.estoque_minimo ?? 0),
     lote: row.lote ? String(row.lote) : undefined,
     validade: row.validade ? formatDate(String(row.validade)) : undefined,
     precoCusto: row.preco_custo != null ? Number(row.preco_custo) : undefined,
     precoVenda: row.preco_venda != null ? Number(row.preco_venda) : undefined,
+    unidadeMedida: row.unidade_medida ? String(row.unidade_medida) : undefined,
     status: String(row.status ?? ''),
   }
 }
@@ -233,6 +237,7 @@ export function mapProfissionalItem(
     estadoCivil: row.estado_civil ? String(row.estado_civil) : null,
     endereco: row.endereco ? String(row.endereco) : null,
     bairro: row.bairro ? String(row.bairro) : null,
+    cidade: row.cidade ? String(row.cidade) : null,
     cep: row.cep ? String(row.cep) : null,
     estado: row.estado ? String(row.estado) : null,
     tipoVinculo:

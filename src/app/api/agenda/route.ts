@@ -239,17 +239,23 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   })
 }
 
+// Resolve o profissional a partir de um UUID (id) ou nome, validando que existe.
+// Retorna null quando não encontra OU é AMBÍGUO (nome duplicado → maybeSingle erra →
+// data null): o chamador trata null como "não atribuir", nunca caindo no criador de
+// forma silenciosa (item 15a).
 async function resolveProfessionalId(
   supabase: ReturnType<typeof getAppSupabase>,
   profissional: unknown,
 ) {
   if (!profissional) return null
-  const candidate = String(profissional)
+  const candidate = String(profissional).trim()
+  if (!candidate) return null
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-  if (uuidPattern.test(candidate)) return candidate
-
-  const { data } = await supabase.from('usuarios').select('id').eq('nome', candidate).maybeSingle()
-  return data?.id ?? null
+  const base = supabase.from('usuarios').select('id')
+  const { data } = uuidPattern.test(candidate)
+    ? await base.eq('id', candidate).maybeSingle()
+    : await base.eq('nome', candidate).maybeSingle()
+  return data?.id ? String(data.id) : null
 }
 
 async function resolvePatientUnitId(
@@ -301,9 +307,25 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getAppSupabase()
-  const profissionalId =
-    (await resolveProfessionalId(supabase, body.profissional)) ?? session.userId
   const pacienteId = body.pacienteId ? String(body.pacienteId) : null
+
+  // Item 15a — resolve preferindo o UUID enviado pelo front (body.profissionalId);
+  // o nome fica só como compatibilidade. Agendamento COM paciente (consulta/encaixe)
+  // EXIGE um profissional resolvido — sem fallback silencioso pro criador, que
+  // rotulava o encaixe para outra pessoa. Compromisso pessoal (sem paciente)
+  // pertence ao próprio criador (session.userId).
+  const profissionalResolvido = await resolveProfessionalId(
+    supabase,
+    body.profissionalId ?? body.profissional,
+  )
+  if (pacienteId && !profissionalResolvido) {
+    return serverErrorResponse(
+      'Selecione um profissional válido para o agendamento.',
+      'PROFISSIONAL_INVALIDO',
+      400,
+    )
+  }
+  const profissionalId = profissionalResolvido ?? session.userId
   const scopedContext = await getScopedAgendaContext(session)
   if (scopedContext.error) {
     return supabaseErrorResponse(scopedContext.error, 'Falha ao criar agendamento')

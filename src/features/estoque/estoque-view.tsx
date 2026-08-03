@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, ArrowDownRight, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, Clock, Edit, Eye, History, Info, Inbox, MoreVertical, Package, Printer, Search, Trash2, Undo2 } from 'lucide-react'
-import { useEstoque, type MovimentacaoEstoqueInput, type MovimentacaoItem } from '@/features/estoque/hooks/use-estoque'
+import { AlertCircle, ArrowDownRight, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, Clock, Edit, Eye, History, Info, Inbox, MoreVertical, Package, Plus, Printer, Search, Trash2, Undo2 } from 'lucide-react'
+import { useEstoque, type EstoqueInput, type MovimentacaoEstoqueInput, type MovimentacaoItem } from '@/features/estoque/hooks/use-estoque'
 import { toast } from 'sonner'
 import { SegmentedControl } from '@/components/shared/segmented-control'
 import { FilterBar } from '@/components/shared/filter-bar'
@@ -40,6 +40,7 @@ import {
   EstornarMovimentacaoModal,
   ExcluirProdutoModal,
   HistoricoProdutoModal,
+  NovoProdutoModal,
   SaidaEstoqueModal,
   VisualizarEstoqueModal,
 } from './modals'
@@ -47,6 +48,7 @@ import { ImprimirEtiquetaModal } from './modals/imprimir-etiqueta-modal'
 
 type EstoqueModal =
   | 'entrada'
+  | 'novo'
   | 'saida'
   | 'visualizar'
   | 'editar'
@@ -102,6 +104,7 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
     data,
     error,
     isLoading,
+    createProduto,
     updateProduto,
     deleteProduto,
     registrarEntrada,
@@ -226,6 +229,12 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
     setSelectedId(null)
   }
 
+  const handleCriar = async (payload: EstoqueInput) => {
+    await createProduto(payload)
+    toast.success('Produto cadastrado com sucesso.')
+    setActiveModal(null)
+  }
+
   const handleExcluir = async () => {
     if (!selectedItem) return
     await deleteProduto(selectedItem.id)
@@ -241,6 +250,13 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
         description={sectionSubtitle}
         actions={
           <>
+            <Button
+              onClick={() => setActiveModal('novo')}
+              className="flex-1 md:flex-none h-11 md:h-12 px-6 bg-app-primary hover:bg-app-primary-hover text-white font-normal rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-[var(--app-primary)]/10 transition-all active:scale-[0.98]"
+            >
+              <Plus size={18} />
+              Novo produto
+            </Button>
             {section === 'estoque' && criticalCount > 0 && (
               <div className="bg-[var(--app-danger-text)] dark:bg-red-900/40 dark:text-[var(--app-danger-text)] text-white flex items-center gap-2 px-4 py-2.5 rounded-[12px] font-normal text-sm shadow-lg shadow-red-500/10">
                 <AlertCircle className="h-4 w-4 shrink-0" />
@@ -654,6 +670,14 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
         }}
         items={data}
         onConfirm={handleSaida}
+      />
+
+      <NovoProdutoModal
+        isOpen={activeModal === 'novo'}
+        onClose={(open) => {
+          if (!open) setActiveModal(null)
+        }}
+        onSave={handleCriar}
       />
 
       <EditarProdutoModal

@@ -1,7 +1,7 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { Bell, Calendar, ChevronDown, Clock, DollarSign, Lock, MoreVertical, Play, Plus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { EmptyState } from '@/components/shared/empty-state'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,26 +10,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { AgendaSlot, DayGridSlot } from '../agenda.types'
+import type { AgendaSlot } from '../agenda.types'
 import { getStatusBadgeTone, getStatusButtonTone, getStatusCardTone, normalizeAgendaStatus } from '../agenda.utils'
 import type { AgendaBloqueio } from '../hooks/use-agenda-bloqueios'
 
 interface AgendaDayViewProps {
-  daySlots: DayGridSlot[]
   dayFilteredItems: AgendaSlot[]
   bloqueios?: AgendaBloqueio[]
   bloqueiosProfissionais?: Array<{ id: string; nome: string }>
   currentDate?: Date
-  selectedFilter: string
   selectedProfessional: string
-  professionalOptions: string[]
+  /** Filtro atual é "todos"/"agendamentos" — decide o texto do estado vazio. */
   showDaySlots: boolean
   onOpenSlotModal: (modal: 'remarcar' | 'cancelar' | 'detalhes' | 'visualizar' | 'ficha-paciente', slot: AgendaSlot) => void
   onOpenCharge: (slot: AgendaSlot) => void
   onCallSpecialist: (slot: AgendaSlot) => void
   onStatusChange: (slot: AgendaSlot, status: string) => void
-  onSelectProfessional: (professional: string) => void
-  onOpenNewModal: () => void
   onOpenAvailableSlot?: (slot: AgendaSlot) => void
   onStartAtendimento?: (slot: AgendaSlot) => void
 }
@@ -41,26 +37,17 @@ function isoDateLocal(d: Date) {
   return `${y}-${m}-${day}`
 }
 
-function timeWithinSlot(slotTime: string, hInicio: string | null, hFim: string | null) {
-  if (!hInicio || !hFim) return true
-  return slotTime >= hInicio.slice(0, 5) && slotTime < hFim.slice(0, 5)
-}
-
 export function AgendaDayView({
-  daySlots,
   dayFilteredItems,
   bloqueios = [],
   bloqueiosProfissionais = [],
   currentDate,
   selectedProfessional,
-  professionalOptions,
   showDaySlots,
   onOpenSlotModal,
   onOpenCharge,
   onCallSpecialist,
   onStatusChange,
-  onSelectProfessional,
-  onOpenNewModal,
   onOpenAvailableSlot,
   onStartAtendimento,
 }: AgendaDayViewProps) {
@@ -68,77 +55,84 @@ export function AgendaDayView({
 
   const todayIso = currentDate ? isoDateLocal(currentDate) : ''
   const profIdToNome = new Map(bloqueiosProfissionais.map((p) => [p.id, p.nome]))
+  // Bloqueios do dia (filtrados por profissional quando um está selecionado).
+  // Antes eram renderizados por linha do grid estático (repetindo o mesmo bloqueio
+  // em cada faixa de 30min); agora saem uma vez cada, numa seção no topo do dia.
   const bloqueiosDoDia = bloqueios.filter((b) => {
     if (!todayIso) return false
-    return b.dataInicio <= todayIso && b.dataFim >= todayIso
+    if (b.dataInicio > todayIso || b.dataFim < todayIso) return false
+    if (selectedProfessional !== 'todos') {
+      const profissionalNome = b.profissionalId ? profIdToNome.get(b.profissionalId) : null
+      if (b.profissionalId && profissionalNome !== selectedProfessional) return false
+    }
+    return true
   })
+
+  // Item 11a+b — as linhas do dia derivam dos horários REALMENTE presentes nos
+  // agendamentos/slots do dia, não mais de um grid fixo 08:00–17:30 de 30 em 30.
+  // Resolve os dois sintomas de uma vez: (a) sem nada gerado não há linha nenhuma
+  // → cai no EmptyState em vez de placeholders falsos; (b) um slot real de
+  // qualquer duração/horário (ex.: 08:40 numa grade de 40min, ou um encaixe às
+  // 18:10) aparece, porque a linha nasce do próprio horário do item — antes,
+  // qualquer horário fora de {:00,:30} não casava com nenhuma linha e sumia.
+  const rowTimes = Array.from(new Set(dayFilteredItems.map((item) => item.hora))).sort()
+
+  const temConteudo = dayFilteredItems.length > 0 || bloqueiosDoDia.length > 0
 
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        {daySlots.map((slot) => {
-          const allItemsInSlot = dayFilteredItems.filter((item) => item.hora === slot.time)
+        {bloqueiosDoDia.map((b) => {
+          const profissionalNome = b.profissionalId ? profIdToNome.get(b.profissionalId) : null
+          return (
+            <div
+              key={`bloq-${b.id}`}
+              className="rounded-integrallys border border-red-200 bg-red-50/70 p-4 dark:border-red-900/40 dark:bg-red-950/20"
+              title={b.justificativa ?? undefined}
+            >
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex-shrink-0 w-[60px]">
+                  <p className="text-xl font-normal text-red-700 dark:text-red-300 leading-[30px]">
+                    {b.diaInteiro ? '—' : (b.horarioInicio?.slice(0, 5) ?? '')}
+                  </p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <Lock className="h-3 w-3 text-red-700 dark:text-red-300" />
+                    <span className="text-xs font-normal text-red-700/80 dark:text-red-300/80">
+                      {b.diaInteiro ? 'Dia inteiro' : `${b.horarioInicio?.slice(0, 5) ?? ''}–${b.horarioFim?.slice(0, 5) ?? ''}`}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="rounded-full bg-red-200 px-2 py-0.5 text-xs font-medium text-red-900 dark:bg-red-900/50 dark:text-red-100">
+                      {b.tipo}
+                    </span>
+                    <span className="text-sm font-normal text-red-900 dark:text-red-100">
+                      {profissionalNome ?? 'Todos profissionais'}
+                    </span>
+                  </div>
+                  {b.justificativa && (
+                    <p className="text-xs text-red-800/80 dark:text-red-200/80 mt-1 truncate">
+                      {b.justificativa}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+
+        {rowTimes.map((time) => {
+          const allItemsInSlot = dayFilteredItems.filter((item) => item.hora === time)
           const itemsInSlot = allItemsInSlot.filter((item) => item.status !== 'Disponível')
           const activeItemsInSlot = itemsInSlot.filter((item) => normalizeAgendaStatus(item.status) !== 'Cancelado')
           const availableItemsInSlot =
             activeItemsInSlot.length > 0
               ? []
               : allItemsInSlot.filter((item) => item.status === 'Disponível')
-          const targetNames =
-            selectedProfessional === 'todos'
-              ? professionalOptions
-              : professionalOptions.filter((name) => name === selectedProfessional)
-
-          const bloqueiosNoSlot = bloqueiosDoDia.filter((b) => {
-            if (!b.diaInteiro && !timeWithinSlot(slot.time, b.horarioInicio, b.horarioFim)) return false
-            if (selectedProfessional !== 'todos') {
-              const profissionalNome = b.profissionalId ? profIdToNome.get(b.profissionalId) : null
-              if (b.profissionalId && profissionalNome !== selectedProfessional) return false
-            }
-            return true
-          })
 
           return (
-            <div key={slot.id} className="space-y-2">
-              {bloqueiosNoSlot.map((b) => {
-                const profissionalNome = b.profissionalId ? profIdToNome.get(b.profissionalId) : null
-                return (
-                  <div
-                    key={`bloq-${b.id}-${slot.time}`}
-                    className="rounded-integrallys border border-red-200 bg-red-50/70 p-4 dark:border-red-900/40 dark:bg-red-950/20"
-                    title={b.justificativa ?? undefined}
-                  >
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="flex-shrink-0 w-[60px]">
-                        <p className="text-xl font-normal text-red-700 dark:text-red-300 leading-[30px]">
-                          {slot.time}
-                        </p>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Lock className="h-3 w-3 text-red-700 dark:text-red-300" />
-                          <span className="text-xs font-normal text-red-700/80 dark:text-red-300/80">
-                            {b.diaInteiro ? 'Dia inteiro' : `${b.horarioInicio?.slice(0, 5) ?? ''}–${b.horarioFim?.slice(0, 5) ?? ''}`}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-[200px]">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="rounded-full bg-red-200 px-2 py-0.5 text-xs font-medium text-red-900 dark:bg-red-900/50 dark:text-red-100">
-                            {b.tipo}
-                          </span>
-                          <span className="text-sm font-normal text-red-900 dark:text-red-100">
-                            {profissionalNome ?? 'Todos profissionais'}
-                          </span>
-                        </div>
-                        {b.justificativa && (
-                          <p className="text-xs text-red-800/80 dark:text-red-200/80 mt-1 truncate">
-                            {b.justificativa}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+            <div key={time} className="space-y-2">
               {itemsInSlot.map((item) => {
                 const currentStatus = normalizeAgendaStatus(item.status)
 
@@ -300,52 +294,19 @@ export function AgendaDayView({
                   <Plus className="h-4 w-4 text-emerald-700 dark:text-emerald-300 shrink-0" />
                 </button>
               ))}
-
-              {showDaySlots &&
-                activeItemsInSlot.length === 0 &&
-                availableItemsInSlot.length === 0 &&
-                targetNames.map((professionalName) => (
-                  <button
-                    key={`${slot.id}-${professionalName}`}
-                    onClick={() => {
-                      onSelectProfessional(professionalName)
-                      onOpenNewModal()
-                    }}
-                    className="w-full bg-app-card dark:bg-app-card-dark border border-dashed border-app-border dark:border-app-border-dark rounded-integrallys p-4 flex items-center gap-4 hover:bg-app-bg-secondary dark:hover:bg-app-hover/50 transition-all group"
-                  >
-                    <div className="w-[60px] text-left">
-                      <p className="text-xl font-normal text-app-text-muted dark:text-white/60 group-hover:text-app-primary dark:group-hover:text-app-primary transition-colors leading-[30px]">
-                        {slot.time}
-                      </p>
-                      <div className="flex items-center gap-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Clock className="h-3 w-3 text-app-primary" />
-                        <span className="text-xs font-normal text-app-primary">30min</span>
-                      </div>
-                    </div>
-                    <div className="flex-1 text-left flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-app-bg-secondary dark:bg-app-hover flex items-center justify-center group-hover:app-status-info transition-colors">
-                        <Plus className="w-5 h-5 text-app-text-muted dark:text-white/60 group-hover:text-app-primary transition-colors" />
-                      </div>
-                      <div className="flex flex-col ml-3">
-                        <span className="text-base text-app-text-muted dark:text-white/60 font-normal group-hover:text-app-primary transition-colors">
-                          Disponível
-                        </span>
-                        <span className="text-xs text-app-text-muted">
-                          {selectedProfessional === 'todos' ? professionalName : 'Clique para novo agendamento'}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                ))}
             </div>
           )
         })}
 
-        {dayFilteredItems.length === 0 && !showDaySlots && (
+        {!temConteudo && (
           <EmptyState
             icon={Calendar}
-            title="Nenhum agendamento encontrado"
-            description="Não há consultas agendadas para o período selecionado."
+            title={showDaySlots ? 'Nenhuma agenda gerada para este dia' : 'Nenhum agendamento encontrado'}
+            description={
+              showDaySlots
+                ? 'Gere a agenda deste profissional (ou selecione outro dia) para ver os horários disponíveis.'
+                : 'Não há consultas agendadas para o período selecionado.'
+            }
           />
         )}
       </div>

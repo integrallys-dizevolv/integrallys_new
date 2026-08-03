@@ -57,7 +57,8 @@ next-env.d.ts
 .openclaude/
 
 # Dumps e artefatos gerados localmente
-repomix-output.xml
+# repomix-*.xml = dumps de contexto por tarefa (repomix-item12-*.xml, etc.), não só o default.
+repomix-*.xml
 *.cookies
 gestor-*.json
 gestor.cookies
@@ -73,5 +74,7 @@ MIGRATIONS_PENDENTES.md
 # Docs internos — não publicar em repo público.
 # agents/ = checklists sec-ops + specs de sprint (nomeiam segredos / postura de auth).
 # tasks_incremental.md = task tracking interno (inventário de rotas sem escopo per-unit).
+# SECURITY_IDOR_AUDIT.md = inventário de endpoints vulneráveis ainda não corrigidos.
 /agents/
 /tasks_incremental.md
+/SECURITY_IDOR_AUDIT.md
