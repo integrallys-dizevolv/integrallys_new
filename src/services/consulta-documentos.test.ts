@@ -7,7 +7,7 @@ import { consultarCnpj } from './cnpj.service'
 // tem que virar um resultado tratável, nunca travar o formulário.
 
 function stubFetch(impl: (url: string) => Promise<unknown> | unknown) {
-  const spy = vi.fn(async (input: string | URL) => impl(String(input)))
+  const spy = vi.fn(async (input: string | URL, _init?: RequestInit) => impl(String(input)))
   vi.stubGlobal('fetch', spy)
   return spy
 }
@@ -167,5 +167,157 @@ describe('consultarCnpj', () => {
     expect(resultado.status).toBe('encontrado')
     if (resultado.status !== 'encontrado') return
     expect(resultado.empresa.razaoSocial).toBe('')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Fallback de segunda fonte
+//
+// BrasilAPI e minhaReceita espelham a mesma base da Receita Federal, mas
+// sincronizam em ritmos diferentes — vimos ao vivo um MEI que a Receita
+// confirma existir e que a BrasilAPI ainda não tinha indexado.
+//
+// Daí a regra que estes testes travam: "não encontrado" só pode aparecer
+// quando as DUAS fontes responderam 404 de forma limpa. Se alguma consulta não
+// completou (timeout, 5xx, rede), não temos como afirmar que o CNPJ não
+// existe — o certo é "erro".
+// ---------------------------------------------------------------------------
+
+const EMPRESA_MINHA_RECEITA = {
+  cnpj: '33000167000101',
+  razao_social: 'PETROLEO BRASILEIRO S A PETROBRAS',
+  nome_fantasia: 'PETROBRAS - EDISE',
+  email: null,
+  ddd_telefone_1: '2121660000',
+  cep: '20031170',
+  logradouro: 'REPUBLICA DO CHILE',
+  numero: '65',
+  complemento: '',
+  bairro: 'CENTRO',
+  municipio: 'RIO DE JANEIRO',
+  uf: 'RJ',
+}
+
+function ehMinhaReceita(url: string) {
+  return url.includes('minhareceita.org')
+}
+
+/** Responde diferente por fonte, para exercitar cada combinação da tabela. */
+function stubFontes(fontes: {
+  brasilApi: () => Promise<unknown> | unknown
+  minhaReceita: () => Promise<unknown> | unknown
+}) {
+  return stubFetch((url) => (ehMinhaReceita(url) ? fontes.minhaReceita() : fontes.brasilApi()))
+}
+
+const falhaDeRede = () => Promise.reject(new Error('network down'))
+
+describe('consultarCnpj · fallback da segunda fonte', () => {
+  it('não gasta a segunda fonte quando a BrasilAPI já encontrou', async () => {
+    const spy = stubFontes({
+      brasilApi: () => respostaJson(EMPRESA_MINHA_RECEITA),
+      minhaReceita: () => respostaJson({ razao_social: 'NÃO DEVERIA SER CHAMADA' }),
+    })
+
+    expect((await consultarCnpj('33.000.167/0001-01')).status).toBe('encontrado')
+    expect(spy.mock.calls.some(([url]) => ehMinhaReceita(String(url)))).toBe(false)
+  })
+
+  it('encontra pela minhaReceita quando a BrasilAPI ainda não indexou o CNPJ', async () => {
+    stubFontes({
+      brasilApi: () => respostaJson({ type: 'not_found' }, 404),
+      minhaReceita: () => respostaJson(EMPRESA_MINHA_RECEITA),
+    })
+
+    const resultado = await consultarCnpj('33.000.167/0001-01')
+
+    expect(resultado.status).toBe('encontrado')
+    if (resultado.status !== 'encontrado') return
+    expect(resultado.empresa.razaoSocial).toBe('PETROLEO BRASILEIRO S A PETROBRAS')
+  })
+
+  it('encontra pela minhaReceita quando a BrasilAPI cai por falha de rede', async () => {
+    stubFontes({
+      brasilApi: falhaDeRede,
+      minhaReceita: () => respostaJson(EMPRESA_MINHA_RECEITA),
+    })
+
+    expect((await consultarCnpj('33.000.167/0001-01')).status).toBe('encontrado')
+  })
+
+  it('consulta a minhaReceita no endpoint documentado, com o CNPJ normalizado', async () => {
+    const spy = stubFontes({
+      brasilApi: () => respostaJson({}, 404),
+      minhaReceita: () => respostaJson(EMPRESA_MINHA_RECEITA),
+    })
+
+    await consultarCnpj('12.abc.345/01de-35')
+
+    expect(spy).toHaveBeenCalledWith('https://minhareceita.org/12ABC34501DE35', expect.anything())
+  })
+
+  it('devolve nao-encontrado quando as duas fontes confirmam 404', async () => {
+    stubFontes({
+      brasilApi: () => respostaJson({}, 404),
+      minhaReceita: () => respostaJson({ message: 'CNPJ não encontrado.' }, 404),
+    })
+
+    expect(await consultarCnpj('33.000.167/0001-01')).toEqual({ status: 'nao-encontrado' })
+  })
+
+  it('devolve erro, não nao-encontrado, quando a BrasilAPI falhou e a minhaReceita não achou', async () => {
+    // A minhaReceita respondeu 404 limpo, mas a BrasilAPI nunca respondeu.
+    // Afirmar "não existe" aqui seria mentir sobre o que foi realmente checado.
+    stubFontes({
+      brasilApi: () => respostaJson({}, 500),
+      minhaReceita: () => respostaJson({}, 404),
+    })
+
+    expect((await consultarCnpj('33.000.167/0001-01')).status).toBe('erro')
+  })
+
+  it('devolve erro quando a BrasilAPI não achou e a minhaReceita falhou por comunicação', async () => {
+    stubFontes({
+      brasilApi: () => respostaJson({}, 404),
+      minhaReceita: falhaDeRede,
+    })
+
+    expect((await consultarCnpj('33.000.167/0001-01')).status).toBe('erro')
+  })
+
+  it('devolve erro quando as duas fontes falham por comunicação', async () => {
+    stubFontes({ brasilApi: falhaDeRede, minhaReceita: falhaDeRede })
+
+    expect((await consultarCnpj('33.000.167/0001-01')).status).toBe('erro')
+  })
+
+  it('mapeia a minhaReceita no mesmo formato que a BrasilAPI produziria', async () => {
+    // As duas expõem o mesmo schema da Receita, então o endereço preenchido no
+    // formulário não pode depender de qual fonte respondeu.
+    stubFetch(() => respostaJson(EMPRESA_MINHA_RECEITA))
+    const viaBrasilApi = await consultarCnpj('33.000.167/0001-01')
+
+    stubFontes({
+      brasilApi: () => respostaJson({}, 404),
+      minhaReceita: () => respostaJson(EMPRESA_MINHA_RECEITA),
+    })
+    const viaMinhaReceita = await consultarCnpj('33.000.167/0001-01')
+
+    expect(viaMinhaReceita).toEqual(viaBrasilApi)
+    expect(viaBrasilApi.status).toBe('encontrado')
+  })
+
+  it('limita cada fonte com timeout, para não somar as esperas em série', async () => {
+    const spy = stubFontes({
+      brasilApi: () => respostaJson({}, 404),
+      minhaReceita: () => respostaJson(EMPRESA_MINHA_RECEITA),
+    })
+
+    await consultarCnpj('33.000.167/0001-01')
+
+    expect(spy.mock.calls).toHaveLength(2)
+    for (const [, init] of spy.mock.calls) {
+      expect((init as RequestInit | undefined)?.signal).toBeInstanceOf(AbortSignal)
+    }
   })
 })
