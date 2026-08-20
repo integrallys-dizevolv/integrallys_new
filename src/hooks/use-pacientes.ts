@@ -77,6 +77,8 @@ export interface PacientesMutationResponse extends ApiListResponse<PacienteItem>
     units?: Array<{ id: string; nome: string }>
   } & Record<string, unknown>
   portalAccess?: PacientePortalAccess | null
+  /** Id do paciente recém-criado (POST). */
+  createdId?: string
 }
 
 interface PacientesListResponse extends ApiListResponse<PacienteItem> {

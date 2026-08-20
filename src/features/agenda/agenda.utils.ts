@@ -12,6 +12,25 @@ export function formatAgendaDate(date: Date, viewMode: ViewMode) {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1)
 }
 
+/** Duração a partir de início/fim (HH:MM). Retorna null se não calculável — UI omite badge. */
+export function formatSlotDuration(hora: string, horaFim?: string): string | null {
+  if (!horaFim) return null
+  const parse = (value: string) => {
+    const [h, m] = value.slice(0, 5).split(':').map(Number)
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null
+    return h * 60 + m
+  }
+  const start = parse(hora)
+  const end = parse(horaFim)
+  if (start == null || end == null) return null
+  const diff = end - start
+  if (diff <= 0) return null
+  if (diff < 60) return `${diff}min`
+  const hours = Math.floor(diff / 60)
+  const mins = diff % 60
+  return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`
+}
+
 export function normalizeAgendaStatus(status: string) {
   const normalized = status.trim().toLowerCase()
   if (normalized.includes('confirm')) return 'Confirmado'

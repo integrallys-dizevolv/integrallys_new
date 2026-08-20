@@ -18,6 +18,8 @@ export type AgendaModal =
 export interface AgendaSlot {
   id: string
   hora: string
+  /** Fim do slot (HH:MM); usado para duração real — nunca assumir 30min. */
+  horaFim?: string
   pacienteId?: string
   paciente: string
   profissionalId?: string

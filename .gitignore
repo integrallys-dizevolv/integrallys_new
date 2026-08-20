@@ -59,6 +59,7 @@ next-env.d.ts
 # Dumps e artefatos gerados localmente
 # repomix-*.xml = dumps de contexto por tarefa (repomix-item12-*.xml, etc.), não só o default.
 repomix-*.xml
+.video-frames/
 *.cookies
 gestor-*.json
 gestor.cookies

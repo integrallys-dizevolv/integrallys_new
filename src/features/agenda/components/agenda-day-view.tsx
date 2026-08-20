@@ -11,7 +11,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { AgendaSlot } from '../agenda.types'
-import { getStatusBadgeTone, getStatusButtonTone, getStatusCardTone, normalizeAgendaStatus } from '../agenda.utils'
+import {
+  formatSlotDuration,
+  getStatusBadgeTone,
+  getStatusButtonTone,
+  getStatusCardTone,
+  normalizeAgendaStatus,
+} from '../agenda.utils'
 import type { AgendaBloqueio } from '../hooks/use-agenda-bloqueios'
 
 interface AgendaDayViewProps {
@@ -135,6 +141,7 @@ export function AgendaDayView({
             <div key={time} className="space-y-2">
               {itemsInSlot.map((item) => {
                 const currentStatus = normalizeAgendaStatus(item.status)
+                const duracao = formatSlotDuration(item.hora, item.horaFim)
 
                 return (
                   <div
@@ -146,12 +153,14 @@ export function AgendaDayView({
                         <p className="text-xl font-normal text-app-text-primary dark:text-white leading-[30px]">
                           {item.hora}
                         </p>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Clock className="h-3 w-3 text-app-text-secondary dark:text-app-text-muted" />
-                          <span className="text-xs font-normal text-app-text-secondary dark:text-app-text-muted">
-                            30min
-                          </span>
-                        </div>
+                        {duracao && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Clock className="h-3 w-3 text-app-text-secondary dark:text-app-text-muted" />
+                            <span className="text-xs font-normal text-app-text-secondary dark:text-app-text-muted">
+                              {duracao}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex-1 w-full sm:w-auto ml-0 sm:ml-4 min-w-[200px]">

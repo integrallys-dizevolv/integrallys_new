@@ -354,6 +354,7 @@ export async function POST(request: NextRequest) {
     data: listPayload.data,
     meta: listPayload.meta,
     portalAccess,
+    createdId: String(createdPatient.id),
   })
 }
 

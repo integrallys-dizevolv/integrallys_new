@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Activity, Clock, FileText } from 'lucide-react'
+import { Activity, Clock, FileText, UserPlus, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { ModalHeader } from '@/components/shared/modal-header'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog'
@@ -11,6 +12,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import {
+  CadastroRapidoPaciente,
+  type CadastroRapidoPacientePayload,
+} from './cadastro-rapido-paciente'
 import { resolveModalidade, type TipoAtendimento } from './novo-agendamento.utils'
 
 interface PacienteOption {
@@ -45,6 +50,7 @@ interface NovoAgendamentoModalProps {
   initialDate?: string
   initialTime?: string
   initialProfissional?: string
+  onCreatePatient?: (payload: CadastroRapidoPacientePayload) => Promise<PacienteOption>
   onSave?: (payload: {
     pacienteId: string
     profissional: string
@@ -70,10 +76,16 @@ export function NovoAgendamentoModal({
   initialDate,
   initialTime,
   initialProfissional,
+  onCreatePatient,
   onSave,
 }: NovoAgendamentoModalProps) {
   const formRef = useRef<HTMLFormElement | null>(null)
   const [pacienteId, setPacienteId] = useState('')
+  const [patientQuery, setPatientQuery] = useState('')
+  const [patientListOpen, setPatientListOpen] = useState(false)
+  const [showQuickCreate, setShowQuickCreate] = useState(false)
+  const [creatingPatient, setCreatingPatient] = useState(false)
+  const [extraPatients, setExtraPatients] = useState<PacienteOption[]>([])
   const [profissional, setProfissional] = useState('')
   const [data, setData] = useState(currentDate ? toLocalISODate(currentDate) : '')
   const [horario, setHorario] = useState('')
@@ -84,10 +96,28 @@ export function NovoAgendamentoModal({
   const [encaixeExtraHorario, setEncaixeExtraHorario] = useState(false)
   const [motivoEncaixe, setMotivoEncaixe] = useState('')
 
+  const allPatients = useMemo(() => {
+    const map = new Map<string, PacienteOption>()
+    for (const item of [...patients, ...extraPatients]) {
+      map.set(item.id, item)
+    }
+    return Array.from(map.values())
+  }, [extraPatients, patients])
+
   const patientName = useMemo(
-    () => patients.find((item) => item.id === pacienteId)?.nome ?? '',
-    [patients, pacienteId],
+    () => allPatients.find((item) => item.id === pacienteId)?.nome ?? '',
+    [allPatients, pacienteId],
   )
+
+  const filteredPatients = useMemo(() => {
+    const query = patientQuery.trim().toLowerCase()
+    if (!query) return []
+    return allPatients
+      .filter((item) => item.nome.toLowerCase().includes(query))
+      .slice(0, 8)
+  }, [allPatients, patientQuery])
+
+  const noPatientMatch = patientQuery.trim().length > 0 && filteredPatients.length === 0
 
   // Horários 'Disponível' do profissional selecionado naquela data (ordenados, únicos).
   const slotsForSelection = useMemo(() => {
@@ -107,15 +137,55 @@ export function NovoAgendamentoModal({
     }
   }, [encaixeExtraHorario, horario, slotsForSelection])
 
+  // Reset só na transição fechado→aberto (e presets iniciais). NÃO depender de
+  // `patients`: após createPaciente a lista troca de identidade e apagaria o
+  // paciente recém-selecionado.
+  const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (!isOpen) return
-    if (initialPatientId && patients.some((item) => item.id === initialPatientId)) {
-      setPacienteId(initialPatientId)
+    if (!isOpen) {
+      wasOpenRef.current = false
+      return
+    }
+    const justOpened = !wasOpenRef.current
+    wasOpenRef.current = true
+    if (!justOpened) return
+
+    setExtraPatients([])
+    setShowQuickCreate(false)
+    setPatientListOpen(false)
+    setPacienteId('')
+    setPatientQuery('')
+    if (initialPatientId) {
+      const initial = patients.find((item) => item.id === initialPatientId)
+      if (initial) {
+        setPacienteId(initial.id)
+        setPatientQuery(initial.nome)
+      } else {
+        setPacienteId(initialPatientId)
+      }
     }
     if (initialDate) setData(initialDate)
     if (initialTime) setHorario(initialTime)
     if (initialProfissional) setProfissional(initialProfissional)
-  }, [initialDate, initialPatientId, initialProfissional, initialTime, isOpen, patients])
+    // patients intencionalmente omitido — lookup usa o valor do render da abertura
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open transition only
+  }, [isOpen, initialDate, initialPatientId, initialProfissional, initialTime])
+
+  // Se o modal abriu com preset antes da lista carregar, preenche o nome quando
+  // `patients` chegar — sem limpar seleção feita pelo usuário/create rápido.
+  useEffect(() => {
+    if (!isOpen || !initialPatientId) return
+    const initial = patients.find((item) => item.id === initialPatientId)
+    if (!initial) return
+    setPacienteId((current) => {
+      if (!current || current === initialPatientId) return initial.id
+      return current
+    })
+    setPatientQuery((current) => {
+      if (!current.trim() || current === initial.nome) return initial.nome
+      return current
+    })
+  }, [isOpen, initialPatientId, patients])
 
   const handleOpenChange = (open: boolean) => {
     if (!open) onClose()
@@ -123,6 +193,38 @@ export function NovoAgendamentoModal({
 
   const handleClose = () => {
     onClose()
+  }
+
+  const selectPatient = (patient: PacienteOption) => {
+    setPacienteId(patient.id)
+    setPatientQuery(patient.nome)
+    setPatientListOpen(false)
+    setShowQuickCreate(false)
+  }
+
+  const clearPatient = () => {
+    setPacienteId('')
+    setPatientQuery('')
+    setPatientListOpen(false)
+    setShowQuickCreate(false)
+  }
+
+  const handleQuickCreate = async (payload: CadastroRapidoPacientePayload) => {
+    if (!onCreatePatient) {
+      toast.error('Criação rápida de paciente indisponível.')
+      return
+    }
+    setCreatingPatient(true)
+    try {
+      const created = await onCreatePatient(payload)
+      setExtraPatients((prev) => [...prev, created])
+      selectPatient(created)
+      toast.success('Paciente cadastrado.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao cadastrar paciente')
+    } finally {
+      setCreatingPatient(false)
+    }
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -154,20 +256,93 @@ export function NovoAgendamentoModal({
 
         <form ref={formRef} onSubmit={(event) => void handleSubmit(event)} className="space-y-5 p-6 pb-8 pt-2">
           <div className="space-y-1.5">
-            <Label className="text-sm font-normal text-app-text-primary dark:text-white">Paciente</Label>
-            <Select value={pacienteId} onValueChange={setPacienteId}>
-              <SelectTrigger className="h-11 rounded-integrallys border-app-border bg-white dark:border-app-border-dark dark:bg-app-bg-dark">
-                <SelectValue placeholder="Selecione o paciente" />
-              </SelectTrigger>
-              <SelectContent className="rounded-integrallys">
-                {patients.length === 0 && <SelectItem value="__empty_patients" disabled>Nenhum paciente disponível</SelectItem>}
-                {patients.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="paciente-busca" className="text-sm font-normal text-app-text-primary dark:text-white">
+              Paciente
+            </Label>
+            <div className="relative">
+              <Input
+                id="paciente-busca"
+                role="combobox"
+                aria-expanded={patientListOpen}
+                aria-controls="paciente-sugestoes"
+                aria-autocomplete="list"
+                value={patientQuery}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setPatientQuery(value)
+                  setPacienteId('')
+                  setPatientListOpen(true)
+                  setShowQuickCreate(false)
+                }}
+                onFocus={() => setPatientListOpen(true)}
+                placeholder="Buscar ou digitar nome do paciente"
+                className="h-11 rounded-integrallys bg-app-bg-secondary/50 pr-10 dark:bg-app-bg-dark"
+                autoComplete="off"
+              />
+              {(pacienteId || patientQuery) && (
+                <button
+                  type="button"
+                  aria-label="Limpar paciente"
+                  onClick={clearPatient}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-app-text-muted hover:text-app-text-primary"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+              {patientListOpen && patientQuery.trim().length > 0 && !showQuickCreate && (
+                <div
+                  id="paciente-sugestoes"
+                  role="listbox"
+                  className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-integrallys border border-app-border bg-white shadow-md dark:border-app-border-dark dark:bg-app-card-dark"
+                >
+                  {filteredPatients.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="option"
+                      aria-selected={item.id === pacienteId}
+                      className="flex w-full px-3 py-2 text-left text-sm text-app-text-primary hover:bg-app-bg-secondary dark:text-white dark:hover:bg-app-hover"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => selectPatient(item)}
+                    >
+                      {item.nome}
+                    </button>
+                  ))}
+                  {noPatientMatch && (
+                    <div className="space-y-2 p-3">
+                      <p className="text-xs font-medium text-app-text-primary dark:text-white">
+                        Cadastro rápido
+                      </p>
+                      <p className="text-xs text-app-text-muted">Nenhum paciente encontrado.</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-9 w-full gap-2 rounded-integrallys"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          setShowQuickCreate(true)
+                          setPatientListOpen(false)
+                        }}
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        Cadastrar paciente rápido
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {pacienteId && patientName && (
+              <p className="text-xs text-app-text-muted">Selecionado: {patientName}</p>
+            )}
+            {showQuickCreate && (
+              <CadastroRapidoPaciente
+                initialNome={patientQuery.trim()}
+                isSubmitting={creatingPatient}
+                onCancel={() => setShowQuickCreate(false)}
+                onSubmit={handleQuickCreate}
+              />
+            )}
           </div>
 
           <div className="space-y-1.5">

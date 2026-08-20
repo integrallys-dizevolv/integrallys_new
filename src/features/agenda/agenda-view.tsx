@@ -89,7 +89,7 @@ export function AgendaView() {
   const api = useApi()
   const { data: bloqueios, create: createBloqueio } = useAgendaBloqueios()
   const { createLancamento } = useFinanceiro()
-  const { data: pacientes } = usePacientes()
+  const { data: pacientes, createPaciente } = usePacientes()
   const { data: waitlistItems, createItem: createWaitlistItem } = useListaEspera()
   const { createTarefa } = useTarefas()
   const { data: usuarios } = useUsuarios()
@@ -182,6 +182,7 @@ export function AgendaView() {
         .map((item) => ({
           id: item.id,
           hora: item.horario,
+          horaFim: item.horarioFim,
           pacienteId: item.pacienteId,
           paciente: item.paciente,
           profissionalId: item.profissionalId,
@@ -213,6 +214,7 @@ export function AgendaView() {
       personalAgenda.map((item) => ({
         id: item.id,
         hora: item.horario,
+        horaFim: item.horarioFim,
         pacienteId: item.pacienteId,
         paciente: item.paciente,
         profissionalId: item.profissionalId,
@@ -895,9 +897,9 @@ export function AgendaView() {
             {activeTab === 'global' && !isLoading && calendar.viewMode === 'semana' && (
               <AgendaWeekView
                 weekAgendaGroups={calendar.weekAgendaGroups}
+                showDaySlots={showDaySlots}
                 onOpenSlotModal={actions.openSlotModal}
                 onSetCurrentDate={calendar.setCurrentDate}
-                onOpenNewModal={() => actions.setActiveModal('novo')}
               />
             )}
             {activeTab === 'global' && !isLoading && calendar.viewMode === 'mes' && (
@@ -1160,6 +1162,26 @@ export function AgendaView() {
         initialDate={novoAgendamentoPreset.data}
         initialTime={novoAgendamentoPreset.horario}
         initialProfissional={novoAgendamentoPreset.profissional}
+        onCreatePatient={async (payload) => {
+          const response = await createPaciente({
+            nome: payload.nome,
+            telefone: payload.telefone,
+            dataNascimento: payload.dataNascimento,
+            cpf: payload.cpf,
+            status: 'Ativo',
+          })
+          const createdId =
+            response.createdId ??
+            response.data.find(
+              (item) =>
+                item.nome === payload.nome &&
+                (item.cpf ?? '').replace(/\D/g, '') === payload.cpf.replace(/\D/g, ''),
+            )?.id
+          if (!createdId) {
+            throw new Error('Paciente criado, mas o id não retornou da API')
+          }
+          return { id: createdId, nome: payload.nome }
+        }}
         onSave={handleCreateAppointment}
       />
       <ListaEsperaModal
