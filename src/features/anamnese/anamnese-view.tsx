@@ -28,6 +28,7 @@ import {
   VisualizarAnamneseModal,
   ExcluirAnamneseModal,
 } from './modals'
+import { AnamneseCamposBuilder } from './components/anamnese-campos-builder'
 
 const formatMetric = (value?: number, suffix = '') => {
   if (typeof value !== 'number' || Number.isNaN(value)) return '--'
@@ -94,6 +95,8 @@ export function AnamneseView() {
           </>
         }
       />
+
+      <AnamneseCamposBuilder />
 
       <div className="app-grid-stats md:grid-cols-3">
         {stats.map((stat, index) => (

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getEntityNameMap, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { mapPrescricaoItem } from '@/lib/domain-mappers'
+import { stripPrescricaoFinancialFields } from '@/lib/financial-sanitize'
 import { authErrorResponse, forbiddenResponse, getRequestAuth } from '@/lib/request-auth'
 import { serverErrorResponse } from '@/lib/app-api'
 
@@ -121,27 +122,9 @@ function normalizeItemsPayload(raw: unknown): ItemPayload[] {
 type MappedPrescricao = ReturnType<typeof mapPrescricaoItem>
 
 // CR-SEC-01 · item 2.2: o especialista NUNCA deve receber valores monetários
-// da prescrição pela API. Desvio deliberado (Regra #7): em vez de
-// `valorTotal: null` (o campo é `number` e é consumido com aritmética/
-// toLocaleString na view da recepção, que o escopo proíbe alterar) usamos a
-// flag `valoresOcultos` + zeramos/removemos os valores no servidor. O valor
-// real nunca sai do backend; a recepção/gestor seguem recebendo tudo.
+// da prescrição pela API. Ver `stripPrescricaoFinancialFields`.
 function sanitizeForRole(item: MappedPrescricao, role?: string) {
-  if (role !== 'especialista') return item
-  return {
-    ...item,
-    valoresOcultos: true,
-    valorTotal: 0,
-    valorBruto: undefined,
-    valorParcela: undefined,
-    descontoValor: undefined,
-    descontoPercentual: undefined,
-    items: (item.items ?? []).map((line) => ({
-      ...line,
-      unitPrice: 0,
-      total: 0,
-    })),
-  }
+  return stripPrescricaoFinancialFields(item, role)
 }
 
 async function listPrescricoes(session: Awaited<ReturnType<typeof getRequestAuth>>) {
@@ -589,6 +572,13 @@ export async function PUT(request: NextRequest) {
   }
 
   const previousStatus = currentQuery.data?.status ? String(currentQuery.data.status) : ''
+  if (previousStatus === 'Convertida' || previousStatus === 'Cancelada') {
+    return serverErrorResponse(
+      'Prescrição finalizada não pode ser alterada',
+      'PRESCRIPTION_IMMUTABLE',
+      409,
+    )
+  }
   const nextStatus = String(body.status)
   const transitionToConvertida =
     previousStatus !== 'Convertida' && nextStatus === 'Convertida'
@@ -686,6 +676,25 @@ export async function DELETE(request: NextRequest) {
   }
 
   const supabase = getAppSupabase()
+  const currentQuery = await supabase
+    .from('prescricoes')
+    .select('status')
+    .eq('id', String(body.id))
+    .maybeSingle()
+
+  if (currentQuery.error) {
+    return supabaseErrorResponse(currentQuery.error, 'Falha ao carregar prescrição para exclusão')
+  }
+
+  const status = currentQuery.data?.status ? String(currentQuery.data.status) : ''
+  if (status === 'Convertida' || status === 'Cancelada') {
+    return serverErrorResponse(
+      'Prescrição finalizada não pode ser excluída',
+      'PRESCRIPTION_IMMUTABLE',
+      409,
+    )
+  }
+
   const { error } = await supabase.from('prescricoes').delete().eq('id', String(body.id))
 
   if (error) {

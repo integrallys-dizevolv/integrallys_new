@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getEntityNameMap, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
+import { stripRelatorioPrescricaoValor } from '@/lib/financial-sanitize'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 
 export type PrescricaoSituacao = 'no_prazo' | 'limite_prazo' | 'vencido' | 'sem_validade'
@@ -189,7 +190,7 @@ export async function GET(request: NextRequest) {
       numero: String(row.numero ?? ''),
       status: String(row.status ?? ''),
       tipo: String(row.tipo ?? ''),
-      valorTotal: Number(row.valor_total ?? 0),
+      valorTotal: stripRelatorioPrescricaoValor(Number(row.valor_total ?? 0), session.role),
       dataPrescricao: row.data_prescricao ?? null,
       validade,
       situacao: calcularSituacao(validade, hojeIso, limiteIso),

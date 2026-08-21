@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { mapEstoqueItem } from '@/lib/domain-mappers'
+import { stripEstoquePrices } from '@/lib/financial-sanitize'
 import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 
 // SCOPED UNIT — `getScopedUnitId` agora vem centralizado de `request-auth.ts`
@@ -52,7 +53,7 @@ async function listEstoque(request: NextRequest, session: Awaited<ReturnType<typ
   }
 
   return NextResponse.json({
-    data: (data ?? []).map((row) => mapEstoqueItem(row)),
+    data: (data ?? []).map((row) => stripEstoquePrices(mapEstoqueItem(row), session?.role)),
     meta: session,
   })
 }
@@ -443,7 +444,14 @@ export async function PUT(request: NextRequest) {
     .update({
       nome: body.produto,
       categoria: body.categoria,
+      sku: parseText(body.sku),
       quantidade: Number(body.quantidade ?? 0),
+      estoque_minimo: parseNumeric(body.estoqueMinimo) ?? 0,
+      lote: parseText(body.lote),
+      validade: parseText(body.validade),
+      preco_custo: parseNumeric(body.precoCusto),
+      preco_venda: parseNumeric(body.precoVenda),
+      unidade_medida: parseText(body.unidadeMedida),
       status: body.status ?? 'Disponível',
       unidade_id: scopedUnitUpdate.unidadeId ?? body.unidadeId ?? null,
       updated_at: new Date().toISOString(),

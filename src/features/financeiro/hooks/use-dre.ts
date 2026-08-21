@@ -32,14 +32,15 @@ export interface DreResumo {
 }
 
 export interface DreFiltersInput {
-  periodo: 'mensal' | 'trimestral' | 'anual' | 'diario'
+  periodo: 'mensal' | 'trimestral' | 'anual' | 'diario' | 'semanal'
   mesAno: string
   unidade: string
   visao: string
   busca: string
   tipo: 'todos' | 'receita' | 'despesa'
   categoria: string
-  /** Período B do modo comparativo: 'YYYY-MM' (ou 'YYYY-MM-DD' no diário). */
+  centroCusto?: string
+  /** Período B do modo comparativo: 'YYYY-MM' (ou 'YYYY-MM-DD' no diário/semanal). */
   comparar?: string
 }
 
@@ -97,6 +98,7 @@ function buildQuery(filters: DreFiltersInput) {
     categoria: filters.categoria,
   })
 
+  if (filters.centroCusto) params.set('centroCusto', filters.centroCusto)
   if (filters.comparar) params.set('comparar', filters.comparar)
 
   return `/api/dre?${params.toString()}`

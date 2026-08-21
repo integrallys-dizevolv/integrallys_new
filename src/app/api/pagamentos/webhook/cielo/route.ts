@@ -4,7 +4,6 @@ import {
   consultarPagamentoCielo,
   consultarPedidoLinkCielo,
   getCieloConfig,
-  mapCieloLinkStatus,
 } from '@/lib/gateways/cielo.service'
 
 /**
@@ -92,8 +91,6 @@ async function localizarPagamento(
 
 export async function POST(request: NextRequest) {
   const payload = await parseBody(request)
-  // TEMP: remover após validar campos do postback
-  console.log('[cielo postback]', JSON.stringify(payload))
   if (!payload) return NextResponse.json({ ok: true })
 
   // ⚠️ VERIFICAR nomes dos campos do postback do Link de Pagamento.
@@ -111,7 +108,10 @@ export async function POST(request: NextRequest) {
   const supabase = getAppSupabase()
   const row = await localizarPagamento(supabase, productId, orderRef)
   if (!row) {
-    console.warn('[webhook/cielo] pagamento não localizado:', { productId, orderRef, paymentId })
+    console.warn('[webhook/cielo] pagamento não localizado:', {
+      productId: productId ? `${productId.slice(0, 8)}…` : '',
+      orderRef: orderRef ? `${orderRef.slice(0, 8)}…` : '',
+    })
     return NextResponse.json({ ok: true })
   }
 
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     .update({ webhook_payload: payload, updated_at: new Date().toISOString() })
     .eq('id', row.id)
 
-  // Status AUTORITATIVO — não confiar no payload.
+  // Status AUTORITATIVO — não confiar no payload. Sem consulta outbound, não marca pago.
   const config = await getCieloConfig()
   let resolved: { status: string; pago: boolean } | null = null
   if (config && paymentId && UUID_REGEX.test(paymentId)) {
@@ -129,8 +129,13 @@ export async function POST(request: NextRequest) {
   } else if (config && row.gateway_id) {
     resolved = await consultarPedidoLinkCielo(config, row.gateway_id)
   }
-  if (!resolved && statusRaw) resolved = mapCieloLinkStatus(statusRaw)
-  if (!resolved) return NextResponse.json({ ok: true })
+  if (!resolved) {
+    console.warn('[webhook/cielo] consulta Cielo indisponível — status do payload ignorado', {
+      paymentIdPresent: Boolean(paymentId),
+      statusRawPresent: Boolean(statusRaw),
+    })
+    return NextResponse.json({ ok: true })
+  }
 
   if (resolved.pago) {
     const agora = new Date().toISOString()

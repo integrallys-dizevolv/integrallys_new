@@ -82,16 +82,22 @@ function buildPacientePayload(body: Record<string, unknown>) {
   }
 }
 
-async function fetchPatientContext() {
+async function fetchPatientContext(unidadeId: string | null) {
   const supabase = getAppSupabase()
+  let pacientesQuery = supabase
+    .from('pacientes')
+    .select(
+      'id,usuario_id,unidade_id,nome,email,telefone,status,data_nascimento,cpf,sexo,rg,inscricao_estadual,origem,origem_detalhe,vinculo_tipos,precisa_nf,photo_url,cep,logradouro,numero,complemento,bairro,cidade,estado,necessidades_especiais,responsavel,financeiro,fornecedor_dados,created_at,updated_at,' +
+        'crm:crm_paciente_estagios(estagio,observacoes,proxima_acao,data_proxima_acao,updated_at)',
+    )
+    .order('nome', { ascending: true })
+
+  if (unidadeId) {
+    pacientesQuery = pacientesQuery.eq('unidade_id', unidadeId)
+  }
+
   const [{ data: pacientes, error: pacientesError }, { data: unidades, error: unidadesError }] = await Promise.all([
-    supabase
-      .from('pacientes')
-      .select(
-        'id,usuario_id,unidade_id,nome,email,telefone,status,data_nascimento,cpf,sexo,rg,inscricao_estadual,origem,origem_detalhe,vinculo_tipos,precisa_nf,photo_url,cep,logradouro,numero,complemento,bairro,cidade,estado,necessidades_especiais,responsavel,financeiro,fornecedor_dados,created_at,updated_at,' +
-          'crm:crm_paciente_estagios(estagio,observacoes,proxima_acao,data_proxima_acao,updated_at)',
-      )
-      .order('nome', { ascending: true }),
+    pacientesQuery,
     supabase
       .from('unidades')
       .select('id,nome')
@@ -169,7 +175,12 @@ async function fetchPatientContext() {
 }
 
 async function listPacientes(request: NextRequest, session: Awaited<ReturnType<typeof getRequestAuth>>) {
-  const context = await fetchPatientContext()
+  const scoped = await getScopedUnitId(session)
+  if (scoped.error) {
+    return supabaseErrorResponse(scoped.error, 'Falha ao carregar pacientes')
+  }
+
+  const context = await fetchPatientContext(scoped.unidadeId)
   if (context.error || !context.data) {
     return supabaseErrorResponse(context.error!, 'Falha ao carregar pacientes')
   }

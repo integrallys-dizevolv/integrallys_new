@@ -1,14 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase } from '@/lib/app-api'
+import { consultarPix, getSicrediConfig } from '@/lib/gateways/sicredi.service'
 
 /**
- * Webhook Pix Sicredi — padrão BACEN (TAREFA-FIN-01). Sem autenticação de
- * sessão. Payload: `{ pix: [{ txid, valor, horario }] }`.
- *
- * Limitação: o BACEN exige mTLS (certificado mútuo) na entrega do webhook;
- * `fetch`/Next não valida o certificado do cliente aqui — em produção é
- * necessário terminação mTLS num proxy à frente desta rota (documentado no
- * README). Responde 200 sempre.
+ * Webhook Pix Sicredi — padrão BACEN.
+ * Nunca marca pago só pelo body: reconsulta a cobrança na Sicredi.
+ * Em produção, termine mTLS no proxy (ver AGENTS.md).
  */
 export async function POST(request: NextRequest) {
   const payload = (await request.json().catch(() => null)) as Record<string, unknown> | null
@@ -18,6 +15,12 @@ export async function POST(request: NextRequest) {
     ? (payload.pix as Array<Record<string, unknown>>)
     : []
   if (pixArr.length === 0) return NextResponse.json({ ok: true })
+
+  const config = await getSicrediConfig()
+  if (!config) {
+    console.warn('[webhook/sicredi] configuração Sicredi ausente — ignorando payload')
+    return NextResponse.json({ ok: true })
+  }
 
   const supabase = getAppSupabase()
 
@@ -33,13 +36,21 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
     if (!row) continue
 
-    const pagoEm = pix.horario ? String(pix.horario) : new Date().toISOString()
+    // Auditoria do payload bruto (sem aplicar status ainda).
+    await supabase
+      .from('pagamentos_online')
+      .update({ webhook_payload: payload, updated_at: new Date().toISOString() })
+      .eq('id', row.id)
+
+    const resolved = await consultarPix(config, txid)
+    if (!resolved?.pago) continue
+
+    const pagoEm = resolved.pago_em ?? (pix.horario ? String(pix.horario) : new Date().toISOString())
     await supabase
       .from('pagamentos_online')
       .update({
         status: 'capturado',
         pago_em: pagoEm,
-        webhook_payload: payload,
         updated_at: new Date().toISOString(),
       })
       .eq('id', row.id)

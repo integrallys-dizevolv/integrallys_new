@@ -28,6 +28,10 @@ import {
   usePrescricoesRelatorio,
   type PrescricaoSituacaoFilter,
 } from '@/features/relatorios/hooks/use-prescricoes-relatorio'
+import {
+  useComparativoUnidades,
+  useRankingProdutos,
+} from '@/features/relatorios/hooks/use-ranking-comparativo'
 import { useUsuarios } from '@/hooks/use-usuarios'
 import { useUnidades } from '@/hooks/use-unidades'
 import { DataTable } from '@/components/shared/data-table'
@@ -93,6 +97,24 @@ export function RelatoriosView() {
   const [estoqueSubTab, setEstoqueSubTab] = useState<'movimentacoes' | 'curva-abc'>('movimentacoes')
   const [curvaAbcDias, setCurvaAbcDias] = useState<number>(90)
   const curvaAbc = useCurvaAbc(curvaAbcDias)
+  const ranking = useRankingProdutos(90)
+  const comparativo = useComparativoUnidades(30)
+
+  const formatMoney = (value: number) =>
+    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  const exportComparativoCsv = () => {
+    const header = 'unidade,agendamentos,receita,despesa,ticket_medio'
+    const lines = comparativo.data.map(
+      (r) =>
+        `"${r.unidadeNome}",${r.agendamentos},${r.receita},${r.despesa},${r.ticketMedio.toFixed(2)}`,
+    )
+    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv;charset=utf-8' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `comparativo-unidades-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+  }
 
   const availableTabs = useMemo(() => {
     if (tabs.length > 0) return tabs
@@ -384,6 +406,140 @@ export function RelatoriosView() {
                 <p className="text-sm text-[var(--app-success-text)]">Total Recebido: R$ 0,00</p>
                 <p className="text-sm text-[var(--app-danger-text)]">Total em Aberto: R$ 0,00</p>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'Ranking' && (
+            <div className="space-y-6">
+              {ranking.error && <p className="text-sm text-[var(--app-danger-text)]">{ranking.error}</p>}
+              {ranking.isLoading ? (
+                <p className="text-sm text-app-text-muted">Carregando ranking…</p>
+              ) : (
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+                    <CardContent className="p-5 space-y-3">
+                      <h3 className="text-base font-medium text-app-text-primary dark:text-white">Mais vendidos</h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Produto</TableHead>
+                            <TableHead className="text-right">Qtd</TableHead>
+                            {ranking.valoresVisiveis && <TableHead className="text-right">Receita</TableHead>}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {ranking.vendidos.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-app-text-muted">
+                                Sem vendas convertidas no período.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            ranking.vendidos.map((row) => (
+                              <TableRow key={`v-${row.produtoId ?? row.nome}`}>
+                                <TableCell>{row.nome}</TableCell>
+                                <TableCell className="text-right">{row.quantidade}</TableCell>
+                                {ranking.valoresVisiveis && (
+                                  <TableCell className="text-right">{formatMoney(row.receita)}</TableCell>
+                                )}
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                  <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+                    <CardContent className="p-5 space-y-3">
+                      <h3 className="text-base font-medium text-app-text-primary dark:text-white">Mais lucrativos</h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Produto</TableHead>
+                            <TableHead className="text-right">Qtd</TableHead>
+                            {ranking.valoresVisiveis && <TableHead className="text-right">Margem</TableHead>}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {ranking.lucrativos.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-app-text-muted">
+                                Sem margem calculável no período.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            ranking.lucrativos.map((row) => (
+                              <TableRow key={`l-${row.produtoId ?? row.nome}`}>
+                                <TableCell>{row.nome}</TableCell>
+                                <TableCell className="text-right">{row.quantidade}</TableCell>
+                                {ranking.valoresVisiveis && (
+                                  <TableCell className="text-right">{formatMoney(row.margem)}</TableCell>
+                                )}
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'Comparativo' && (
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <Button variant="outline" className="rounded-xl" onClick={exportComparativoCsv}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar CSV
+                </Button>
+              </div>
+              {comparativo.error && (
+                <p className="text-sm text-[var(--app-danger-text)]">{comparativo.error}</p>
+              )}
+              {comparativo.isLoading ? (
+                <p className="text-sm text-app-text-muted">Carregando comparativo…</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Unidade</TableHead>
+                      <TableHead className="text-right">Agendamentos</TableHead>
+                      {comparativo.valoresVisiveis && (
+                        <>
+                          <TableHead className="text-right">Receita</TableHead>
+                          <TableHead className="text-right">Despesa</TableHead>
+                          <TableHead className="text-right">Ticket médio</TableHead>
+                        </>
+                      )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {comparativo.data.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-app-text-muted">
+                          Nenhuma unidade com dados no período.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      comparativo.data.map((row) => (
+                        <TableRow key={row.unidadeId}>
+                          <TableCell>{row.unidadeNome}</TableCell>
+                          <TableCell className="text-right">{row.agendamentos}</TableCell>
+                          {comparativo.valoresVisiveis && (
+                            <>
+                              <TableCell className="text-right">{formatMoney(row.receita)}</TableCell>
+                              <TableCell className="text-right">{formatMoney(row.despesa)}</TableCell>
+                              <TableCell className="text-right">{formatMoney(row.ticketMedio)}</TableCell>
+                            </>
+                          )}
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </div>
           )}
 

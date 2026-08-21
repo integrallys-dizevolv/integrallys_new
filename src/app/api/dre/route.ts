@@ -45,6 +45,7 @@ interface LancamentoRow {
   categoria_dre?: string | null
   descricao?: string | null
   tipo?: string | null
+  centro_custo_id?: string | null
 }
 
 type DreBucket =
@@ -98,14 +99,16 @@ interface DreComparativoResponse {
 }
 
 interface DreFiltersPayload {
-  periodo: 'mensal' | 'trimestral' | 'anual' | 'diario'
+  periodo: 'mensal' | 'trimestral' | 'anual' | 'diario' | 'semanal'
   mesAno: string
   unidade: string
   visao: string
   busca: string
   tipo: 'todos' | 'receita' | 'despesa'
   categoria: string
-  /** Período B do comparativo: 'YYYY-MM' (ou 'YYYY-MM-DD' no diário). */
+  /** Filtro por centro de custo (uuid) ou 'todos'. */
+  centroCusto: string
+  /** Período B do comparativo: 'YYYY-MM' (ou 'YYYY-MM-DD' no diário/semanal). */
   comparar?: string
   /** Range custom (sobrepõe mesAno/periodo) — diário ou comparativo custom. */
   de?: string
@@ -117,17 +120,21 @@ interface DreFiltersPayload {
 function normalizeFilters(request: NextRequest, body?: Partial<DreFiltersPayload> | null): DreFiltersPayload {
   const searchParams = request.nextUrl.searchParams
   const rawPeriodo = (body?.periodo ?? searchParams.get('periodo') ?? 'mensal') as DreFiltersPayload['periodo']
-  const periodo = (['mensal', 'trimestral', 'anual', 'diario'].includes(rawPeriodo)
+  const periodo = (['mensal', 'trimestral', 'anual', 'diario', 'semanal'].includes(rawPeriodo)
     ? rawPeriodo
     : 'mensal') as DreFiltersPayload['periodo']
   const now = new Date()
-  const defaultMesAno = periodo === 'diario' ? now.toISOString().slice(0, 10) : now.toISOString().slice(0, 7)
+  const defaultMesAno =
+    periodo === 'diario' || periodo === 'semanal'
+      ? now.toISOString().slice(0, 10)
+      : now.toISOString().slice(0, 7)
   const mesAno = String(body?.mesAno ?? searchParams.get('mesAno') ?? defaultMesAno)
   const unidade = String(body?.unidade ?? searchParams.get('unidade') ?? 'todas')
   const visao = String(body?.visao ?? searchParams.get('visao') ?? 'gerencial')
   const busca = String(body?.busca ?? searchParams.get('busca') ?? '').trim()
   const tipo = String(body?.tipo ?? searchParams.get('tipo') ?? 'todos')
   const categoria = String(body?.categoria ?? searchParams.get('categoria') ?? 'todas')
+  const centroCusto = String(body?.centroCusto ?? searchParams.get('centroCusto') ?? 'todos')
   const optional = (key: 'comparar' | 'de' | 'ate' | 'comparar_de' | 'comparar_ate') => {
     const raw = body?.[key] ?? searchParams.get(key) ?? ''
     const text = String(raw).trim()
@@ -142,6 +149,7 @@ function normalizeFilters(request: NextRequest, body?: Partial<DreFiltersPayload
     busca,
     tipo: tipo === 'receita' || tipo === 'despesa' ? tipo : 'todos',
     categoria,
+    centroCusto: centroCusto.trim() === '' ? 'todos' : centroCusto,
     comparar: optional('comparar'),
     de: optional('de'),
     ate: optional('ate'),
@@ -168,14 +176,34 @@ function getReferenceDate(periodo: DreFiltersPayload['periodo'], mesAno: string)
     return new Date(Date.UTC(safeYear, quarterStartMonth, 1))
   }
 
-  if (periodo === 'diario') {
+  if (periodo === 'diario' || periodo === 'semanal') {
     return new Date(Date.UTC(safeYear, safeMonth - 1, safeDay))
   }
 
   return new Date(Date.UTC(safeYear, safeMonth - 1, 1))
 }
 
+function startOfIsoWeek(date: Date) {
+  const d = new Date(date)
+  const day = d.getUTCDay() // 0=Sun … 6=Sat
+  const diff = day === 0 ? -6 : 1 - day // Monday as start
+  d.setUTCDate(d.getUTCDate() + diff)
+  d.setUTCHours(0, 0, 0, 0)
+  return d
+}
+
 function getRangeForPeriod(referenceDate: Date, periodo: DreFiltersPayload['periodo']) {
+  if (periodo === 'semanal') {
+    const start = startOfIsoWeek(referenceDate)
+    const end = new Date(start)
+    end.setUTCDate(end.getUTCDate() + 7)
+    return {
+      start: start.toISOString(),
+      end: end.toISOString(),
+      reference: start.toISOString().slice(0, 10),
+    }
+  }
+
   const start = new Date(referenceDate)
   const end = new Date(referenceDate)
 
@@ -500,12 +528,15 @@ async function computeDrePeriod(
 
   let query = supabase
     .from('financeiro_lancamentos')
-    .select('descricao,categoria,valor,tipo,categoria_dre')
+    .select('descricao,categoria,valor,tipo,categoria_dre,centro_custo_id')
     .gte('data_lancamento', range.start)
     .lt('data_lancamento', range.end)
 
   if (unitId) {
     query = query.eq('unidade_id', unitId)
+  }
+  if (filters.centroCusto && filters.centroCusto !== 'todos') {
+    query = query.eq('centro_custo_id', filters.centroCusto)
   }
 
   const { data, error } = await query

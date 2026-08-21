@@ -35,7 +35,7 @@ async function listFinanceiro(session: Awaited<ReturnType<typeof getRequestAuth>
   let query = supabase
     .from('financeiro_lancamentos')
     .select(
-      'id,descricao,categoria,valor,tipo,data_lancamento,metodo,status,observacoes,created_at,unidade_id,forma_pagamento_id,conta_bancaria_id,beneficiario,parcelas,parcela_atual',
+      'id,descricao,categoria,valor,tipo,data_lancamento,metodo,status,observacoes,created_at,unidade_id,forma_pagamento_id,conta_bancaria_id,beneficiario,parcelas,parcela_atual,centro_custo_id',
     )
     .order('data_lancamento', { ascending: false })
 
@@ -102,6 +102,10 @@ export async function POST(request: NextRequest) {
     metodo: body.metodo ?? null,
     status: 'Pendente',
     observacoes: body.observacoes ?? null,
+    centro_custo_id:
+      typeof body.centroCustoId === 'string' && body.centroCustoId.trim()
+        ? body.centroCustoId.trim()
+        : null,
     ...buildPaymentFields(body),
   })
 
@@ -158,6 +162,12 @@ export async function PUT(request: NextRequest) {
       status: body.status ?? 'Pendente',
       observacoes: body.observacoes ?? null,
       updated_at: new Date().toISOString(),
+      centro_custo_id:
+        typeof body.centroCustoId === 'string' && body.centroCustoId.trim()
+          ? body.centroCustoId.trim()
+          : body.centroCustoId === null
+            ? null
+            : undefined,
       ...buildPaymentFields(body),
     })
     .eq('id', String(body.id))

@@ -135,7 +135,14 @@ export function EstoqueView({ initialSection = 'estoque' }: EstoqueViewProps) {
 
   const selectedItem = useMemo(() => data.find((item) => item.id === selectedId) ?? null, [data, selectedId])
   const criticalCount = useMemo(
-    () => data.filter((item) => item.status.toLowerCase().includes('baixo') || item.status.toLowerCase().includes('crit')).length,
+    () =>
+      data.filter((item) => {
+        const minimo = Number(item.estoqueMinimo ?? 0)
+        const qty = Number(item.quantidade ?? 0)
+        if (Number.isFinite(minimo) && minimo > 0) return qty <= minimo
+        const status = String(item.status ?? '').toLowerCase()
+        return status.includes('baixo') || status.includes('crit')
+      }).length,
     [data],
   )
   const proximasVencimentoCount = useMemo(

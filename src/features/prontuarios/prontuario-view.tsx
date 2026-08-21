@@ -43,8 +43,17 @@ import {
 } from '@/components/ui/table'
 import { EditarProntuarioModal, ExcluirProntuarioModal, NovoProntuarioModal } from '@/features/prontuarios/modals'
 import { DocumentosDoPacienteCard } from '@/features/documentacao-gerar'
+import { ProntuarioHardwareGate } from '@/features/prontuarios/prontuario-live-viewer'
 
 export function ProntuarioView() {
+  return (
+    <ProntuarioHardwareGate>
+      <ProntuarioViewList />
+    </ProntuarioHardwareGate>
+  )
+}
+
+function ProntuarioViewList() {
   const { data, error, isLoading, createProntuario, updateProntuario, deleteProntuario } = useProntuarios()
   const { data: pacientes, isLoading: isLoadingPacientes } = usePacientes()
   const [searchTerm, setSearchTerm] = useState('')

@@ -63,6 +63,25 @@ export async function DELETE(request: NextRequest) {
   if (pacienteError) return supabaseErrorResponse(pacienteError, 'Falha ao excluir prescrição')
   if (!pacienteId) return serverErrorResponse('Paciente não encontrado', 'PATIENT_NOT_FOUND', 404)
 
+  const current = await supabase
+    .from('prescricoes')
+    .select('status')
+    .eq('id', id)
+    .eq('paciente_id', pacienteId)
+    .maybeSingle()
+
+  if (current.error) return supabaseErrorResponse(current.error, 'Falha ao excluir prescrição')
+  if (!current.data) return serverErrorResponse('Prescrição não encontrada', 'PRESCRIPTION_NOT_FOUND', 404)
+
+  const status = String(current.data.status ?? '')
+  if (status !== 'Rascunho' && status !== 'Pendente') {
+    return serverErrorResponse(
+      'Somente rascunhos/pendentes podem ser excluídos pelo portal',
+      'PRESCRIPTION_IMMUTABLE',
+      409,
+    )
+  }
+
   const { error } = await supabase.from('prescricoes').delete().eq('id', id).eq('paciente_id', pacienteId)
   if (error) return supabaseErrorResponse(error, 'Falha ao excluir prescrição')
 

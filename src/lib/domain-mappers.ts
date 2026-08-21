@@ -179,6 +179,7 @@ export function mapFinanceiroItem(row: Record<string, unknown>) {
     beneficiario: row.beneficiario ? String(row.beneficiario) : undefined,
     parcelas: row.parcelas != null ? Number(row.parcelas) : undefined,
     parcelaAtual: row.parcela_atual != null ? Number(row.parcela_atual) : undefined,
+    centroCustoId: row.centro_custo_id ? String(row.centro_custo_id) : undefined,
   }
 }
 
@@ -449,6 +450,10 @@ export function mapAnamneseItem(row: Record<string, unknown>) {
     gorduraVisceral: row.gordura_visceral ? Number(row.gordura_visceral) : undefined,
     massaOssea: row.massa_ossea ? Number(row.massa_ossea) : undefined,
     aguaCorporal: row.agua_corporal ? Number(row.agua_corporal) : undefined,
+    camposExtras:
+      row.campos_extras && typeof row.campos_extras === 'object' && !Array.isArray(row.campos_extras)
+        ? (row.campos_extras as Record<string, string | number | boolean>)
+        : {},
   }
 }
 
@@ -460,6 +465,8 @@ export function mapProntuarioItem(row: Record<string, unknown>) {
     data: formatDate(String(row.data_registro ?? '')),
     tipo: String(row.tipo ?? ''),
     status: String(row.status ?? ''),
+    updatedAt: row.updated_at ? String(row.updated_at) : undefined,
+    updatedBy: row.updated_by ? String(row.updated_by) : undefined,
   }
 }
 

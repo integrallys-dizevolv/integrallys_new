@@ -19,6 +19,7 @@ export const SENSITIVE_CONFIG_KEYS = new Set<string>([
   'cielo.merchant_key',
   'cielo.link_access_token',
   'sicredi.client_secret',
+  'chatbot.webhook_token',
 ])
 
 export function isSensitiveConfigKey(chave: string): boolean {

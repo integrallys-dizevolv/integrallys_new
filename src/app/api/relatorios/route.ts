@@ -13,6 +13,8 @@ const REPORT_TABS = [
   'Pacientes',
   'Performance',
   'Tarefas',
+  'Ranking',
+  'Comparativo',
 ] as const
 
 function buildRelatorio(
@@ -236,6 +238,18 @@ export async function GET(request: NextRequest) {
         'relatorio-tarefas',
         'Tarefas',
         `${tarefas.length} tarefas registradas, com ${tarefasPendentes} pendentes de conclusão`,
+        updatedAt,
+      ),
+      buildRelatorio(
+        'relatorio-ranking',
+        'Ranking',
+        'Produtos mais vendidos e mais lucrativos (prescrições convertidas)',
+        updatedAt,
+      ),
+      buildRelatorio(
+        'relatorio-comparativo',
+        'Comparativo',
+        'Comparativo lado a lado entre unidades (agendamentos, receita e ticket)',
         updatedAt,
       ),
     ],

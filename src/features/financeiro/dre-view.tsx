@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useDre, type DreFiltersInput } from '@/features/financeiro/hooks/use-dre'
+import { useApi } from '@/hooks/use-api'
 
 const createInitialDreFilters = (): DreFiltersInput => ({
   periodo: 'mensal',
@@ -26,6 +27,7 @@ const createInitialDreFilters = (): DreFiltersInput => ({
   busca: '',
   tipo: 'todos',
   categoria: 'todas',
+  centroCusto: 'todos',
 })
 
 const createClearedDreFilters = (): DreFiltersInput => ({
@@ -36,6 +38,7 @@ const createClearedDreFilters = (): DreFiltersInput => ({
   busca: '',
   tipo: 'todos',
   categoria: 'todas',
+  centroCusto: 'todos',
 })
 
 const formatCurrency = (value: number) =>
@@ -61,6 +64,7 @@ const getPeriodLabel = (periodo: string) => {
   if (periodo === 'trimestral') return 'trimestre'
   if (periodo === 'anual') return 'ano'
   if (periodo === 'diario') return 'dia'
+  if (periodo === 'semanal') return 'semana'
   return 'mês'
 }
 
@@ -89,25 +93,35 @@ const VariacaoBadge = ({ pct }: { pct: number }) => {
 }
 
 export function DreView() {
+  const api = useApi()
   const [expandedDreItems, setExpandedDreItems] = useState<number[]>([])
   const [dreFilters, setDreFilters] = useState<DreFiltersInput>(createInitialDreFilters)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [appliedFilters, setAppliedFilters] = useState<DreFiltersInput>(createInitialDreFilters)
   const [compareMode, setCompareMode] = useState(false)
+  const [centrosCusto, setCentrosCusto] = useState<Array<{ id: string; nome: string }>>([])
   const dre = useDre(appliedFilters)
   const tabelaRef = useRef<HTMLDivElement | null>(null)
-  const isDiario = dreFilters.periodo === 'diario'
+  const isDiario = dreFilters.periodo === 'diario' || dreFilters.periodo === 'semanal'
+
+  useEffect(() => {
+    void api
+      .get<{ data: Array<{ id: string; nome: string }> }>('/api/centros-custo?ativos=1')
+      .then((res) => setCentrosCusto(res.data ?? []))
+      .catch(() => setCentrosCusto([]))
+  }, [api])
 
   const handlePeriodoChange = (value: string) => {
     const periodo = value as DreFiltersInput['periodo']
     setDreFilters((prev) => {
       let { mesAno, comparar } = prev
-      if (periodo === 'diario' && /^\d{4}-\d{2}$/.test(mesAno)) mesAno = `${mesAno}-01`
-      if (periodo !== 'diario' && /^\d{4}-\d{2}-\d{2}$/.test(mesAno)) mesAno = mesAno.slice(0, 7)
+      const needsDay = periodo === 'diario' || periodo === 'semanal'
+      if (needsDay && /^\d{4}-\d{2}$/.test(mesAno)) mesAno = `${mesAno}-01`
+      if (!needsDay && /^\d{4}-\d{2}-\d{2}$/.test(mesAno)) mesAno = mesAno.slice(0, 7)
       if (comparar) {
-        if (periodo === 'diario' && /^\d{4}-\d{2}$/.test(comparar)) comparar = `${comparar}-01`
-        if (periodo !== 'diario' && /^\d{4}-\d{2}-\d{2}$/.test(comparar)) comparar = comparar.slice(0, 7)
+        if (needsDay && /^\d{4}-\d{2}$/.test(comparar)) comparar = `${comparar}-01`
+        if (!needsDay && /^\d{4}-\d{2}-\d{2}$/.test(comparar)) comparar = comparar.slice(0, 7)
       }
       return { ...prev, periodo, mesAno, comparar }
     })
@@ -227,6 +241,7 @@ export function DreView() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="diario">Diário</SelectItem>
+                <SelectItem value="semanal">Semanal</SelectItem>
                 <SelectItem value="mensal">Mensal</SelectItem>
                 <SelectItem value="trimestral">Trimestral</SelectItem>
                 <SelectItem value="anual">Anual</SelectItem>
@@ -319,6 +334,26 @@ export function DreView() {
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="receita">Receitas</SelectItem>
                 <SelectItem value="despesa">Despesas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="min-w-[220px] flex-1 space-y-1.5">
+            <Label className="text-sm font-normal text-app-text-primary dark:text-white/80">Centro de custo</Label>
+            <Select
+              value={dreFilters.centroCusto ?? 'todos'}
+              onValueChange={(value) => setDreFilters((prev) => ({ ...prev, centroCusto: value }))}
+            >
+              <SelectTrigger className="h-11 rounded-xl border-app-border bg-app-bg-secondary text-sm font-medium dark:border-app-border-dark dark:bg-app-card-dark">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os centros</SelectItem>
+                {(centrosCusto ?? []).map((cc) => (
+                  <SelectItem key={cc.id} value={cc.id}>
+                    {cc.nome}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

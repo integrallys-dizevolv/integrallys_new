@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const supabase = getAppSupabase()
   const { data, error } = await supabase
     .from('anamneses')
-    .select('id,paciente_id,data_anamnese,tipo,queixa,imc,peso,gordura,altura,massa_muscular,gordura_visceral,massa_ossea,agua_corporal')
+    .select('id,paciente_id,data_anamnese,tipo,queixa,imc,peso,gordura,altura,massa_muscular,gordura_visceral,massa_ossea,agua_corporal,campos_extras')
     .order('data_anamnese', { ascending: false })
 
   if (error) {
@@ -67,6 +67,10 @@ export async function POST(request: NextRequest) {
     gordura_visceral: body.gorduraVisceral,
     massa_ossea: body.massaOssea,
     agua_corporal: body.aguaCorporal,
+    campos_extras:
+      body.camposExtras && typeof body.camposExtras === 'object' && !Array.isArray(body.camposExtras)
+        ? body.camposExtras
+        : {},
   })
 
   if (error) {
@@ -106,6 +110,10 @@ export async function PUT(request: NextRequest) {
       gordura_visceral: body.gorduraVisceral,
       massa_ossea: body.massaOssea,
       agua_corporal: body.aguaCorporal,
+      campos_extras:
+        body.camposExtras && typeof body.camposExtras === 'object' && !Array.isArray(body.camposExtras)
+          ? body.camposExtras
+          : {},
       updated_at: new Date().toISOString(),
     })
     .eq('id', String(body.id))

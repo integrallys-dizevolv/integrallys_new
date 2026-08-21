@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAppSupabase, getEntityNameMap, serverErrorResponse, supabaseErrorResponse } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
-import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
+import {
+  isFinanciallyRestrictedRole,
+  stripHistoricoValorUnitario,
+} from '@/lib/financial-sanitize'
+import { authErrorResponse, getRequestAuth, getScopedUnitId } from '@/lib/request-auth'
 
 interface HistoricoPrescricaoItem {
   produto: string
@@ -55,6 +59,24 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = getAppSupabase()
+  const scopedUnit = await getScopedUnitId(session)
+  if (scopedUnit.error) {
+    return supabaseErrorResponse(scopedUnit.error, 'Falha ao validar unidade do paciente')
+  }
+  if (scopedUnit.unidadeId && !['master', 'admin'].includes(session.role)) {
+    const { data: pacienteRow, error: pacienteError } = await supabase
+      .from('pacientes')
+      .select('unidade_id')
+      .eq('id', pacienteId)
+      .maybeSingle()
+    if (pacienteError) return supabaseErrorResponse(pacienteError, 'Falha ao validar paciente')
+    if (!pacienteRow) {
+      return serverErrorResponse('Paciente não encontrado', 'PACIENTE_NOT_FOUND', 404)
+    }
+    if (pacienteRow.unidade_id && String(pacienteRow.unidade_id) !== scopedUnit.unidadeId) {
+      return serverErrorResponse('Paciente fora do escopo da unidade', 'PACIENTE_UNIT_FORBIDDEN', 403)
+    }
+  }
 
   const [
     { data: anamneses, error: anamnesesError },
@@ -96,11 +118,16 @@ export async function GET(request: NextRequest) {
     .map((row) => String(row.id ?? ''))
     .filter(Boolean)
 
+  const hidePrices = isFinanciallyRestrictedRole(session.role)
   let itensByPrescricao = new Map<string, HistoricoPrescricaoItem[]>()
   if (prescricaoIds.length > 0) {
+    // Especialista: não seleciona valor_unitario (cláusula 4 / CR-SEC-01).
+    const itemSelect = hidePrices
+      ? 'prescricao_id,descricao,quantidade,posologia'
+      : 'prescricao_id,descricao,quantidade,posologia,valor_unitario'
     const { data: itens, error: itensError } = await supabase
       .from('prescricao_itens')
-      .select('prescricao_id,descricao,quantidade,posologia,valor_unitario')
+      .select(itemSelect)
       .in('prescricao_id', prescricaoIds)
 
     if (itensError) return supabaseErrorResponse(itensError, 'Falha ao carregar itens das prescrições')
@@ -109,11 +136,14 @@ export async function GET(request: NextRequest) {
       const key = String(row.prescricao_id ?? '')
       if (!key) continue
       const list = itensByPrescricao.get(key) ?? []
+      const raw = row as Record<string, unknown>
+      const rawValor =
+        !hidePrices && raw.valor_unitario != null ? Number(raw.valor_unitario) : null
       list.push({
         produto: String(row.descricao ?? ''),
         quantidade: Number(row.quantidade ?? 0) || 0,
         posologia: row.posologia ? String(row.posologia) : null,
-        valorUnitario: row.valor_unitario != null ? Number(row.valor_unitario) : null,
+        valorUnitario: stripHistoricoValorUnitario(rawValor, session.role),
       })
       itensByPrescricao.set(key, list)
     }
@@ -223,5 +253,11 @@ export async function GET(request: NextRequest) {
     .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
     .map(([, bucket]) => bucket)
 
-  return NextResponse.json({ data, meta: session })
+  return NextResponse.json({
+    data,
+    meta: {
+      ...session,
+      valoresVisiveis: !hidePrices,
+    },
+  })
 }

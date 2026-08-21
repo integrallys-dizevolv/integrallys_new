@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { ClipboardList, Edit, Eye, FileText, Mail, MoreVertical, Phone, Pill, Plus, Search, Trash2 } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -40,6 +40,7 @@ import { PrescricaoComplementarModal } from '@/features/gestao-pacientes/modals'
 import type { PrescricaoAtiva } from '@/services/especialistaPrescricoes.service'
 import type { Patient } from '@/types/patient'
 import { usePacientes, type PacienteItem } from '@/hooks/use-pacientes'
+import { useApi } from '@/hooks/use-api'
 import { isClientePaciente } from './pacientes.utils'
 
 function calculateAgeFromDate(dateStr: string): string {
@@ -130,12 +131,51 @@ function mapPacienteToPatient(item: PacienteItem): Patient {
 type PacienteWithCrm = PacienteItem & { crm?: PacienteCrm | null }
 
 export function PacientesView() {
+  const api = useApi()
   const { data, units, error, isLoading, load, createPaciente, updatePaciente, deletePaciente } = usePacientes()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
   const [unitFilter, setUnitFilter] = useState('todos')
-  const [mainTab, setMainTab] = useState<'lista' | 'crm'>('lista')
+  const [mainTab, setMainTab] = useState<'lista' | 'crm' | 'inadimplencia'>('lista')
+  const [inadimplencia, setInadimplencia] = useState<
+    Array<{
+      id: string
+      descricao: string
+      valor: number
+      vencimento: string | null
+      status: string
+      pacienteId: string | null
+      pacienteNome: string
+      linkFinanceiro: string
+    }>
+  >([])
+  const [inadimplenciaLoading, setInadimplenciaLoading] = useState(false)
+  const [inadimplenciaError, setInadimplenciaError] = useState<string | null>(null)
   const [viewInitialTab, setViewInitialTab] = useState<'dados' | 'crm'>('dados')
+
+  useEffect(() => {
+    if (mainTab !== 'inadimplencia') return
+    setInadimplenciaLoading(true)
+    setInadimplenciaError(null)
+    void api
+      .get<{
+        data: Array<{
+          id: string
+          descricao: string
+          valor: number
+          vencimento: string | null
+          status: string
+          pacienteId: string | null
+          pacienteNome: string
+          linkFinanceiro: string
+        }>
+      }>('/api/crm/inadimplencia')
+      .then((res) => setInadimplencia(res.data ?? []))
+      .catch((err) =>
+        setInadimplenciaError(err instanceof Error ? err.message : 'Falha ao carregar inadimplência'),
+      )
+      .finally(() => setInadimplenciaLoading(false))
+  }, [mainTab, api])
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -324,10 +364,11 @@ export function PacientesView() {
         onCrmSaved={() => { void load() }}
       />
 
-      <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as 'lista' | 'crm')} className="space-y-4">
+      <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as 'lista' | 'crm' | 'inadimplencia')} className="space-y-4">
         <TabsList>
           <TabsTrigger value="lista">Lista</TabsTrigger>
           <TabsTrigger value="crm">CRM / Relacionamento</TabsTrigger>
+          <TabsTrigger value="inadimplencia">Inadimplência</TabsTrigger>
         </TabsList>
 
         <TabsContent value="lista" className="space-y-4">
@@ -568,6 +609,73 @@ export function PacientesView() {
               })}
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="inadimplencia" className="space-y-4">
+          <Card className="rounded-2xl border-app-border dark:border-app-border-dark">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-medium text-app-text-primary dark:text-white">Inadimplência</h3>
+                  <p className="text-sm text-app-text-muted">
+                    Receitas pendentes com vencimento anterior a hoje (visão CRM).
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={() => {
+                    window.location.href = '/financeiro?status=pendente&vencido=true'
+                  }}
+                >
+                  Abrir financeiro
+                </Button>
+              </div>
+              {inadimplenciaError && (
+                <p className="text-sm text-[var(--app-danger-text)]">{inadimplenciaError}</p>
+              )}
+              {inadimplenciaLoading ? (
+                <p className="text-sm text-app-text-muted">Carregando…</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Paciente / beneficiário</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead>Vencimento</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {inadimplencia.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-app-text-muted">
+                          Nenhum lançamento vencido encontrado.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      inadimplencia.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell>{row.pacienteNome}</TableCell>
+                          <TableCell>{row.descricao}</TableCell>
+                          <TableCell>
+                            {row.vencimento
+                              ? new Date(`${row.vencimento}T00:00:00`).toLocaleDateString('pt-BR')
+                              : '—'}
+                          </TableCell>
+                          <TableCell>{row.status}</TableCell>
+                          <TableCell className="text-right">
+                            {row.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

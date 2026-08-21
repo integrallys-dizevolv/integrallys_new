@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const supabase = getAppSupabase()
   const { data, error } = await supabase
     .from('prontuarios')
-    .select('id,paciente_id,data_registro,tipo,status')
+    .select('id,paciente_id,data_registro,tipo,status,updated_at,updated_by,conteudo')
     .order('data_registro', { ascending: false })
 
   if (error) {
@@ -82,6 +82,27 @@ export async function PUT(request: NextRequest) {
   }
 
   const supabase = getAppSupabase()
+
+  // Snapshot da versão anterior antes de sobrescrever (auditoria).
+  const current = await supabase
+    .from('prontuarios')
+    .select('id,conteudo,status')
+    .eq('id', String(body.id))
+    .maybeSingle()
+
+  if (current.error) {
+    return supabaseErrorResponse(current.error, 'Falha ao carregar prontuário para auditoria')
+  }
+
+  if (current.data) {
+    await supabase.from('prontuario_versoes').insert({
+      prontuario_id: String(body.id),
+      conteudo: current.data.conteudo ?? {},
+      status: current.data.status ? String(current.data.status) : null,
+      edited_by: session.userId,
+    })
+  }
+
   const { error } = await supabase
     .from('prontuarios')
     .update({
@@ -89,6 +110,9 @@ export async function PUT(request: NextRequest) {
       data_registro: body.data,
       tipo: body.tipo,
       status: body.status,
+      updated_by: session.userId,
+      updated_at: new Date().toISOString(),
+      ...(body.conteudo && typeof body.conteudo === 'object' ? { conteudo: body.conteudo } : {}),
     })
     .eq('id', String(body.id))
 

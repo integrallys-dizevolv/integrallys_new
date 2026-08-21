@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import type { NovaAnamneseInput } from '../hooks/use-anamnese'
+import { useApi } from '@/hooks/use-api'
 
 interface NovoAnamneseModalProps {
   isOpen: boolean
@@ -26,6 +27,8 @@ interface NovoAnamneseModalProps {
   pacienteNome?: string
 }
 
+type CampoDef = { id: string; label: string; tipo: 'texto' | 'numero' | 'booleano' }
+
 type FormState = {
   pacienteId: string
   data: string
@@ -33,6 +36,7 @@ type FormState = {
   peso: string
   imc: string
   gordura: string
+  extras: Record<string, string>
 }
 
 const initialForm: FormState = {
@@ -42,6 +46,7 @@ const initialForm: FormState = {
   peso: '',
   imc: '',
   gordura: '',
+  extras: {},
 }
 
 function toNumber(value: string) {
@@ -69,17 +74,24 @@ export function NovoAnamneseModal({
   pacienteId,
   pacienteNome,
 }: NovoAnamneseModalProps) {
+  const api = useApi()
   const { data: pacientes } = usePacientes()
   const [isSaving, setIsSaving] = useState(false)
   const [form, setForm] = useState<FormState>(initialForm)
+  const [camposCustom, setCamposCustom] = useState<CampoDef[]>([])
 
   useEffect(() => {
     if (!isOpen) return
     setForm({
       ...initialForm,
       pacienteId: pacienteId ?? '',
+      extras: {},
     })
-  }, [isOpen, pacienteId])
+    void api
+      .get<{ data: CampoDef[] }>('/api/anamnese/campos')
+      .then((res) => setCamposCustom(res.data ?? []))
+      .catch(() => setCamposCustom([]))
+  }, [isOpen, pacienteId, api])
 
   const canEditPaciente = !pacienteId
 
@@ -87,6 +99,19 @@ export function NovoAnamneseModal({
     if (!form.pacienteId || !form.data.trim() || !form.queixa.trim()) {
       toast.error('Preencha paciente, data e queixa principal para continuar.')
       return
+    }
+
+    const camposExtras: Record<string, string | number | boolean> = {}
+    for (const campo of camposCustom) {
+      const raw = form.extras[campo.id] ?? ''
+      if (campo.tipo === 'numero') {
+        const n = toNumber(raw)
+        if (n != null) camposExtras[campo.id] = n
+      } else if (campo.tipo === 'booleano') {
+        camposExtras[campo.id] = raw === 'true' || raw === '1' || raw.toLowerCase() === 'sim'
+      } else if (raw.trim()) {
+        camposExtras[campo.id] = raw.trim()
+      }
     }
 
     try {
@@ -99,6 +124,7 @@ export function NovoAnamneseModal({
         peso: toNumber(form.peso),
         imc: toNumber(form.imc),
         gordura: toNumber(form.gordura),
+        camposExtras,
       })
       toast.success('Anamnese criada.')
       onClose()
@@ -222,6 +248,52 @@ export function NovoAnamneseModal({
                 className="min-h-[120px] rounded-[12px] border border-app-border dark:border-app-border-dark bg-app-card dark:bg-app-card-dark p-4 text-app-text-primary dark:text-white font-normal placeholder:text-app-text-muted focus-visible:ring-[var(--app-card-dark)] resize-none leading-relaxed"
               />
             </div>
+
+            {camposCustom.length > 0 && (
+              <div className="space-y-4">
+                <Label className="text-base font-normal text-app-text-primary dark:text-white tracking-tight">
+                  Campos personalizados
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {camposCustom.map((campo) => (
+                    <div key={campo.id} className="space-y-2">
+                      <Label className="text-sm text-app-text-secondary">{campo.label}</Label>
+                      {campo.tipo === 'booleano' ? (
+                        <Select
+                          value={form.extras[campo.id] ?? ''}
+                          onValueChange={(value) =>
+                            setForm((current) => ({
+                              ...current,
+                              extras: { ...current.extras, [campo.id]: value },
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="h-12 rounded-[12px]">
+                            <SelectValue preferPlaceholder placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="true">Sim</SelectItem>
+                            <SelectItem value="false">Não</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={form.extras[campo.id] ?? ''}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              extras: { ...current.extras, [campo.id]: event.target.value },
+                            }))
+                          }
+                          type={campo.tipo === 'numero' ? 'number' : 'text'}
+                          className="h-12 rounded-[12px] border border-app-border dark:border-app-border-dark"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-3 pt-6">
               <Button

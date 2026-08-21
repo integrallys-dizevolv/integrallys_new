@@ -616,14 +616,24 @@ export function PrescricoesView() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end" className="w-48 rounded-xl">
-                                    <DropdownMenuItem onClick={() => handleOpenEdit(item)} className="flex items-center gap-2 cursor-pointer">
-                                      <Edit size={16} />
-                                      Editar Prescrição/Vendas
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleOpenDelete(item)} className="flex items-center gap-2 cursor-pointer text-[var(--app-danger-text)] focus:text-[var(--app-danger-text)]">
-                                      <Trash2 size={16} />
-                                      Excluir Prescrição/Vendas
-                                    </DropdownMenuItem>
+                                    {item.status !== 'Convertida' && item.status !== 'Cancelada' && (
+                                      <DropdownMenuItem onClick={() => handleOpenEdit(item)} className="flex items-center gap-2 cursor-pointer">
+                                        <Edit size={16} />
+                                        Editar Prescrição/Vendas
+                                      </DropdownMenuItem>
+                                    )}
+                                    {item.status !== 'Convertida' && item.status !== 'Cancelada' && (
+                                      <DropdownMenuItem onClick={() => handleOpenDelete(item)} className="flex items-center gap-2 cursor-pointer text-[var(--app-danger-text)] focus:text-[var(--app-danger-text)]">
+                                        <Trash2 size={16} />
+                                        Excluir Prescrição/Vendas
+                                      </DropdownMenuItem>
+                                    )}
+                                    {(item.status === 'Convertida' || item.status === 'Cancelada') && (
+                                      <DropdownMenuItem onClick={() => handleOpenDetalhes(item)} className="flex items-center gap-2 cursor-pointer">
+                                        <Eye size={16} />
+                                        Ver detalhes
+                                      </DropdownMenuItem>
+                                    )}
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>

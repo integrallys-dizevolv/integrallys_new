@@ -28,6 +28,7 @@ import { toast } from 'sonner'
 import { AtendimentoProvider, useAtendimento } from '@/contexts/atendimento-context'
 import type { GeneratedDoc, HistoricoItem, PatientDetails } from '@/contexts/atendimento-context'
 import { useAtendimentoHistorico } from '@/hooks/use-atendimento-historico'
+import { useProntuarioLivePublish } from '@/hooks/use-prontuario-live-sync'
 import { useEstoque } from '@/features/estoque/hooks/use-estoque'
 import { usePacientes } from '@/hooks/use-pacientes'
 import {
@@ -215,7 +216,7 @@ function ProgressBar({ currentStep }: { currentStep: number }) {
 function AnamneseSection({ onCancel, onNext }: { onCancel: () => void; onNext: () => void }) {
   const { anamneseType, setAnamneseType, anamneseData, setAnamneseData, status, patientName, appointmentTime, pacienteId } =
     useAtendimento()
-  const isReadOnly = status === 'read-only' || status === 'finalized'
+  const isReadOnly = status === 'read-only'
   const [showAnatomy, setShowAnatomy] = useState(false)
   const { data: pacientes } = usePacientes()
   const pacienteSexo = useMemo(() => {
@@ -574,7 +575,7 @@ function AnamneseSection({ onCancel, onNext }: { onCancel: () => void; onNext: (
 function ProntuarioSection({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   const { evolucaoAtual, setEvolucaoAtual, status, anamneseData, anamneseType, historicoAtendimentos, pacienteId } =
     useAtendimento()
-  const isReadOnly = status === 'read-only' || status === 'finalized'
+  const isReadOnly = status === 'read-only'
   const [expandedDate, setExpandedDate] = useState<string | null>(null)
 
   return (
@@ -790,7 +791,7 @@ function PrescricaoSection({ onBack, onNext }: { onBack: () => void; onNext: () 
   const [searchTerm, setSearchTerm] = useState('')
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false)
   const [selectedLabelData, setSelectedLabelData] = useState<LabelData | null>(null)
-  const isReadOnly = status === 'read-only' || status === 'finalized'
+  const isReadOnly = status === 'read-only'
 
   const stockItems = useMemo(
     () =>
@@ -1000,7 +1001,7 @@ function DocumentosSection({ onBack, onNext }: { onBack: () => void; onNext: () 
     setSignature,
     setGeneratedDocuments,
   } = useAtendimento()
-  const isReadOnly = status === 'read-only' || status === 'finalized'
+  const isReadOnly = status === 'read-only'
 
   const [selectedDocs, setSelectedDocs] = useState<string[]>([])
   const [docData, setDocData] = useState<Record<string, Record<string, string>>>({})
@@ -1428,14 +1429,14 @@ function ConclusaoSection({ onBack, onFinalize }: { onBack: () => void; onFinali
         </div>
       </div>
 
-      {/* RN-009 warning */}
-      <div className="bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 p-6 rounded-integrallys-lg flex gap-4">
-        <AlertCircle className="h-6 w-6 text-[var(--app-warning-text)] shrink-0 mt-0.5" />
+      {/* Edição pós-finalização (contrato / opção 2) */}
+      <div className="bg-sky-50/50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/20 p-6 rounded-integrallys-lg flex gap-4">
+        <AlertCircle className="h-6 w-6 text-sky-700 dark:text-sky-300 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <h4 className="font-normal text-orange-800 dark:text-orange-200">Atenção — Regra RN-009</h4>
-          <p className="text-sm text-orange-700 dark:text-orange-300 leading-relaxed font-normal">
-            Após finalizar o atendimento, as evoluções não poderão ser editadas. Você poderá apenas adicionar notas
-            complementares ou erratas para manter a integridade do histórico legal do paciente.
+          <h4 className="font-normal text-sky-800 dark:text-sky-200">Prontuário editável após finalizar</h4>
+          <p className="text-sm text-sky-700 dark:text-sky-300 leading-relaxed font-normal">
+            O prontuário permanece editável após a finalização. Cada alteração gera snapshot de auditoria. Evoluções
+            continuam com fluxo de nota/errata quando aplicável.
           </p>
         </div>
       </div>
@@ -1475,7 +1476,16 @@ function ConclusaoSection({ onBack, onFinalize }: { onBack: () => void; onFinali
 // ─── Inner ────────────────────────────────────────────────────────────────────
 
 function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinalize?: () => void | Promise<void> }) {
-  const { currentStep, setCurrentStep, patientName, patientDetails, finalizeAtendimento } = useAtendimento()
+  const {
+    currentStep,
+    setCurrentStep,
+    patientName,
+    patientDetails,
+    finalizeAtendimento,
+    pacienteId,
+    evolucaoAtual,
+  } = useAtendimento()
+  useProntuarioLivePublish(pacienteId, evolucaoAtual)
   const [showFinalizeModal, setShowFinalizeModal] = useState(false)
   const [showReturnModal, setShowReturnModal] = useState(false)
   const [returnOption, setReturnOption] = useState('30')
@@ -1623,7 +1633,8 @@ function AtendimentoInner({ onBack, onFinalize }: { onBack: () => void; onFinali
             </div>
             <h2 className="text-2xl font-normal text-app-text-primary dark:text-white">Finalizar atendimento?</h2>
             <p className="text-app-text-muted font-normal">
-              Esta ação irá congelar o prontuário conforme a RN-009 e disparar a orçamentação automática.
+              O prontuário permanece editável após a finalização (com auditoria). A orçamentação automática será
+              disparada normalmente.
             </p>
             <div className="flex gap-4 pt-4">
               <Button variant="outline" className="flex-1 font-normal" onClick={() => setShowFinalizeModal(false)}>
