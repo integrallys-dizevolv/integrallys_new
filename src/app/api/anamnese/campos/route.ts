@@ -9,6 +9,11 @@ export type AnamneseCampoDef = {
   tipo: 'texto' | 'numero' | 'booleano'
 }
 
+function normalizeTipo(raw: unknown): AnamneseCampoDef['tipo'] {
+  if (raw === 'numero' || raw === 'booleano' || raw === 'texto') return raw
+  return 'texto'
+}
+
 function parseCampos(raw: string | null | undefined): AnamneseCampoDef[] {
   if (!raw) return []
   try {
@@ -16,10 +21,10 @@ function parseCampos(raw: string | null | undefined): AnamneseCampoDef[] {
     if (!Array.isArray(parsed)) return []
     return parsed
       .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-      .map((item) => ({
+      .map((item): AnamneseCampoDef => ({
         id: String(item.id ?? '').trim(),
         label: String(item.label ?? '').trim(),
-        tipo: item.tipo === 'numero' || item.tipo === 'booleano' ? item.tipo : 'texto',
+        tipo: normalizeTipo(item.tipo),
       }))
       .filter((item) => item.id && item.label)
   } catch {
@@ -60,14 +65,14 @@ export async function PUT(request: NextRequest) {
     return serverErrorResponse('Payload inválido', 'INVALID_ANAMNESE_CAMPOS', 400)
   }
 
-  const campos = body.campos
+  const campos: AnamneseCampoDef[] = body.campos
     .map((item) => ({
       id: String(item.id ?? '')
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9_]/g, '_'),
       label: String(item.label ?? '').trim(),
-      tipo: item.tipo === 'numero' || item.tipo === 'booleano' ? item.tipo : ('texto' as const),
+      tipo: normalizeTipo(item.tipo),
     }))
     .filter((item) => item.id && item.label)
 

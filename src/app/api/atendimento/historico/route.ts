@@ -122,21 +122,26 @@ export async function GET(request: NextRequest) {
   let itensByPrescricao = new Map<string, HistoricoPrescricaoItem[]>()
   if (prescricaoIds.length > 0) {
     // Especialista: não seleciona valor_unitario (cláusula 4 / CR-SEC-01).
-    const itemSelect = hidePrices
-      ? 'prescricao_id,descricao,quantidade,posologia'
-      : 'prescricao_id,descricao,quantidade,posologia,valor_unitario'
-    const { data: itens, error: itensError } = await supabase
-      .from('prescricao_itens')
-      .select(itemSelect)
-      .in('prescricao_id', prescricaoIds)
+    // Queries separadas para o select string literal tipar no client Supabase.
+    const itensResult = hidePrices
+      ? await supabase
+          .from('prescricao_itens')
+          .select('prescricao_id,descricao,quantidade,posologia')
+          .in('prescricao_id', prescricaoIds)
+      : await supabase
+          .from('prescricao_itens')
+          .select('prescricao_id,descricao,quantidade,posologia,valor_unitario')
+          .in('prescricao_id', prescricaoIds)
 
-    if (itensError) return supabaseErrorResponse(itensError, 'Falha ao carregar itens das prescrições')
+    if (itensResult.error) {
+      return supabaseErrorResponse(itensResult.error, 'Falha ao carregar itens das prescrições')
+    }
 
-    for (const row of itens ?? []) {
+    for (const row of itensResult.data ?? []) {
       const key = String(row.prescricao_id ?? '')
       if (!key) continue
       const list = itensByPrescricao.get(key) ?? []
-      const raw = row as Record<string, unknown>
+      const raw = row as unknown as Record<string, unknown>
       const rawValor =
         !hidePrices && raw.valor_unitario != null ? Number(raw.valor_unitario) : null
       list.push({

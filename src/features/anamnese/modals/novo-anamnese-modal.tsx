@@ -210,11 +210,11 @@ export function NovoAnamneseModal({
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                {[
+                {([
                   { key: 'peso', label: 'Peso (kg)' },
                   { key: 'imc', label: 'IMC' },
                   { key: 'gordura', label: 'Gordura (%)' },
-                ].map((field) => (
+                ] as const).map((field) => (
                   <div key={field.key} className="space-y-3">
                     <Label className="text-base font-normal text-app-text-primary dark:text-white tracking-tight">
                       {field.label}
@@ -222,7 +222,7 @@ export function NovoAnamneseModal({
                     <Input
                       type="number"
                       step="0.1"
-                      value={form[field.key as keyof FormState]}
+                      value={form[field.key]}
                       onChange={(event) =>
                         setForm((current) => ({
                           ...current,
