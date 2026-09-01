@@ -31,7 +31,7 @@ export async function getPacienteIdByUserId(supabase: SupabaseClient, userId: st
 
 export async function getEntityNameMap(
   supabase: SupabaseClient,
-  table: 'pacientes' | 'usuarios' | 'unidades',
+  table: 'pacientes' | 'usuarios' | 'unidades' | 'procedimentos',
   ids: string[],
 ) {
   const uniqueIds = Array.from(new Set(ids.filter(Boolean)))
