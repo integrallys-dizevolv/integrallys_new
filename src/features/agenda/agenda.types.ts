@@ -31,6 +31,8 @@ export interface AgendaSlot {
   plataformaOnline?: string
   urlOnline?: string
   valorProcedimento?: number
+  procedimentoId?: string
+  procedimento?: string
   observacoes?: string
   pagamento?: string
   totalPago?: number

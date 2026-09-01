@@ -63,6 +63,15 @@ describe('buildOccupyUpdate', () => {
     expect(u.modalidade_atendimento).toBe('Presencial')
     expect(u.plataforma_online).toBeNull()
   })
+
+  it('vincula procedimento_id e valor_procedimento na ocupação', () => {
+    const u = buildOccupyUpdate(
+      { procedimentoId: 'proc-1', valorProcedimento: 180 },
+      'pac-1',
+    )
+    expect(u.procedimento_id).toBe('proc-1')
+    expect(u.valor_procedimento).toBe(180)
+  })
 })
 
 describe('buildInsertPayload', () => {

@@ -36,6 +36,13 @@ interface UseAgendaActionsProps {
     responsavelNome: string
     status: string
   }) => Promise<void>
+  registerAgendamentoPagamento: (payload: {
+    agendamentoId: string
+    valor: number
+    metodo: string
+    observacoes?: string
+  }) => Promise<void>
+  reloadAgenda: () => Promise<void>
   findPacienteId: (slot: AgendaSlot) => string | undefined
 }
 
@@ -45,6 +52,8 @@ export function useAgendaActions({
   createLancamento,
   createWaitlistItem,
   createTarefa,
+  registerAgendamentoPagamento,
+  reloadAgenda,
   findPacienteId,
 }: UseAgendaActionsProps) {
   const [activeModal, setActiveModal] = useState<AgendaModal>(null)
@@ -184,9 +193,16 @@ export function useAgendaActions({
         tipo: 'receita',
         metodo: payload.metodo,
         observacoes: payload.observacoes || `${selectedSlot.profissional} • ${selectedSlot.hora}`,
-        status: 'Pendente',
+        status: 'Pago',
       })
-      toast.success('Cobrança emitida no financeiro com sucesso.')
+      await registerAgendamentoPagamento({
+        agendamentoId: selectedSlot.id,
+        valor: payload.valor,
+        metodo: payload.metodo,
+        observacoes: payload.observacoes,
+      })
+      await reloadAgenda()
+      toast.success('Recebimento registrado com sucesso.')
       setActiveModal(null)
       setSelectedSlot(null)
     } catch (err) {

@@ -1,25 +1,55 @@
 import { describe, expect, it } from 'vitest'
-import { formatSlotDuration } from './agenda.utils'
+import {
+  getPagamentoIconTone,
+  normalizeAgendaStatus,
+  resolvePagamentoSituacao,
+} from './agenda.utils'
 
-describe('formatSlotDuration', () => {
-  it('calcula minutos quando fim-início < 60', () => {
-    expect(formatSlotDuration('08:00', '08:40')).toBe('40min')
-    expect(formatSlotDuration('09:00', '09:30')).toBe('30min')
+describe('resolvePagamentoSituacao', () => {
+  it('novo agendamento com valor e sem pagamento → Pendente (não Pago)', () => {
+    expect(
+      resolvePagamentoSituacao({
+        pagamento: 'Pago',
+        valorProcedimento: 250,
+        totalPago: 0,
+      }),
+    ).toBe('Pendente')
   })
 
-  it('formata horas e minutos mistos', () => {
-    expect(formatSlotDuration('08:00', '09:00')).toBe('1h')
-    expect(formatSlotDuration('08:00', '09:15')).toBe('1h 15min')
+  it('quitado quando total_pago >= valor', () => {
+    expect(
+      resolvePagamentoSituacao({
+        pagamento: 'Pendente',
+        valorProcedimento: 250,
+        totalPago: 250,
+      }),
+    ).toBe('Pago')
   })
 
-  it('retorna null sem horaFim ou com diff inválido (UI omite badge)', () => {
-    expect(formatSlotDuration('08:00')).toBeNull()
-    expect(formatSlotDuration('08:00', undefined)).toBeNull()
-    expect(formatSlotDuration('10:00', '09:00')).toBeNull()
-    expect(formatSlotDuration('10:00', '10:00')).toBeNull()
+  it('parcial quando pagou parte', () => {
+    expect(
+      resolvePagamentoSituacao({
+        valorProcedimento: 200,
+        totalPago: 80,
+      }),
+    ).toBe('Parcial')
   })
 
-  it('aceita HH:MM:SS truncando para HH:MM', () => {
-    expect(formatSlotDuration('08:00:00', '08:40:00')).toBe('40min')
+  it('sem valor de procedimento', () => {
+    expect(resolvePagamentoSituacao({ pagamento: 'Sem valor' })).toBe('Sem valor')
+  })
+})
+
+describe('normalizeAgendaStatus', () => {
+  it('Agendado permanece distinto de Confirmado', () => {
+    expect(normalizeAgendaStatus('Agendado')).toBe('Agendado')
+    expect(normalizeAgendaStatus('Confirmado')).toBe('Confirmado')
+  })
+})
+
+describe('getPagamentoIconTone', () => {
+  it('pendente não usa verde', () => {
+    expect(getPagamentoIconTone('Pendente')).not.toContain('success')
+    expect(getPagamentoIconTone('Pago')).toContain('success')
   })
 })

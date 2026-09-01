@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Activity, Clock, FileText, UserPlus, X } from 'lucide-react'
+import { Activity, Clock, FileText, Stethoscope, UserPlus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { ModalHeader } from '@/components/shared/modal-header'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { useProcedimentos } from '@/features/procedimentos/hooks/use-procedimentos'
 import {
   CadastroRapidoPaciente,
   type CadastroRapidoPacientePayload,
@@ -38,11 +39,19 @@ function toLocalISODate(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
+interface ProfessionalOption {
+  id: string
+  nome: string
+  procedimentoIds?: string[]
+}
+
 interface NovoAgendamentoModalProps {
   isOpen: boolean
   onClose: () => void
   currentDate?: Date
   professionals?: string[]
+  /** Detalhes dos profissionais (id + procedimentos vinculados) para filtrar a pasta. */
+  professionalDetails?: ProfessionalOption[]
   patients?: PacienteOption[]
   /** Slots 'Disponível' (gerados na 2A) para oferecer fora do encaixe. */
   availableSlots?: SlotDisponivel[]
@@ -62,6 +71,8 @@ interface NovoAgendamentoModalProps {
     plataformaOnline?: string
     foraJanela?: boolean
     motivoEncaixe?: string
+    procedimentoId?: string
+    valorProcedimento?: number
   }) => Promise<void> | void
 }
 
@@ -70,6 +81,7 @@ export function NovoAgendamentoModal({
   onClose,
   currentDate,
   professionals = [],
+  professionalDetails = [],
   patients = [],
   availableSlots = [],
   initialPatientId,
@@ -95,6 +107,30 @@ export function NovoAgendamentoModal({
   const [plataformaOnline, setPlataformaOnline] = useState<'zoom' | 'google_meet' | 'teams'>('google_meet')
   const [encaixeExtraHorario, setEncaixeExtraHorario] = useState(false)
   const [motivoEncaixe, setMotivoEncaixe] = useState('')
+  const [procedimentoId, setProcedimentoId] = useState('')
+  const { data: procedimentosCatalogo } = useProcedimentos()
+
+  const selectedProfessional = useMemo(
+    () => professionalDetails.find((item) => item.nome === profissional) ?? null,
+    [professionalDetails, profissional],
+  )
+
+  const procedimentosDisponiveis = useMemo(() => {
+    const ativos = procedimentosCatalogo.filter((item) => item.ativo)
+    const vinculados = selectedProfessional?.procedimentoIds ?? []
+    if (vinculados.length === 0) return ativos
+    const allowed = new Set(vinculados)
+    return ativos.filter((item) => allowed.has(item.id))
+  }, [procedimentosCatalogo, selectedProfessional])
+
+  const procedimentoSelecionado = useMemo(
+    () => procedimentosDisponiveis.find((item) => item.id === procedimentoId) ?? null,
+    [procedimentosDisponiveis, procedimentoId],
+  )
+
+  useEffect(() => {
+    setProcedimentoId('')
+  }, [profissional])
 
   const allPatients = useMemo(() => {
     const map = new Map<string, PacienteOption>()
@@ -167,6 +203,7 @@ export function NovoAgendamentoModal({
     if (initialDate) setData(initialDate)
     if (initialTime) setHorario(initialTime)
     if (initialProfissional) setProfissional(initialProfissional)
+    setProcedimentoId('')
     // patients intencionalmente omitido — lookup usa o valor do render da abertura
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open transition only
   }, [isOpen, initialDate, initialPatientId, initialProfissional, initialTime])
@@ -242,6 +279,8 @@ export function NovoAgendamentoModal({
       plataformaOnline: plataforma,
       foraJanela: encaixeExtraHorario,
       motivoEncaixe: encaixeExtraHorario ? motivoEncaixe : undefined,
+      procedimentoId: procedimentoId || undefined,
+      valorProcedimento: procedimentoSelecionado?.valor,
     })
     onClose()
   }
@@ -360,6 +399,43 @@ export function NovoAgendamentoModal({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm font-normal text-app-text-primary dark:text-white flex items-center gap-2">
+              <Stethoscope className="h-4 w-4 text-[var(--app-primary)]" />
+              Procedimento
+            </Label>
+            <Select
+              value={procedimentoId}
+              onValueChange={setProcedimentoId}
+              disabled={!profissional}
+            >
+              <SelectTrigger className="h-11 rounded-integrallys border-app-border bg-white dark:border-app-border-dark dark:bg-app-bg-dark">
+                <SelectValue placeholder={profissional ? 'Selecione o procedimento' : 'Escolha o profissional primeiro'} />
+              </SelectTrigger>
+              <SelectContent className="rounded-integrallys">
+                {procedimentosDisponiveis.length === 0 && (
+                  <SelectItem value="__empty_procedimentos" disabled>
+                    Nenhum procedimento disponível
+                  </SelectItem>
+                )}
+                {procedimentosDisponiveis.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.nome}
+                    {item.valor != null
+                      ? ` — R$ ${item.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                      : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {procedimentoSelecionado?.valor != null && (
+              <p className="text-xs text-app-text-muted">
+                Valor para cobrança: R${' '}
+                {procedimentoSelecionado.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

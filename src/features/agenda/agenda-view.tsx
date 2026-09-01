@@ -24,6 +24,7 @@ import { useListaEspera } from '@/hooks/use-lista-espera'
 import { usePacientes } from '@/hooks/use-pacientes'
 import { useTarefas } from '@/hooks/use-tarefas'
 import { useUsuarios } from '@/hooks/use-usuarios'
+import { useProfissionais } from '@/features/profissionais/hooks/use-profissionais'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -43,7 +44,9 @@ import {
   formatAgendaDate,
   getStatusBadgeTone,
   getStatusCardTone,
+  mapAgendaItemToSlot,
   normalizeAgendaStatus,
+  getPagamentoLegendDot,
 } from './agenda.utils'
 import { useAgendaCalendar } from './hooks/use-agenda-calendar'
 import { useAgendaActions } from './hooks/use-agenda-actions'
@@ -93,6 +96,7 @@ export function AgendaView() {
   const { data: waitlistItems, createItem: createWaitlistItem } = useListaEspera()
   const { createTarefa } = useTarefas()
   const { data: usuarios } = useUsuarios()
+  const { data: profissionaisCatalogo } = useProfissionais()
   const isEspecialista = user?.role === 'especialista'
   const [activeTab, setActiveTab] = useState<'global' | 'pessoal'>('global')
   const [selectedProfessional, setSelectedProfessional] = useState('todos')
@@ -146,6 +150,17 @@ export function AgendaView() {
       .filter(Boolean)
       .sort()
   }, [agendaProfessionals, data, usuarios])
+
+  const professionalDetailsForAgendamento = useMemo(
+    () =>
+      profissionaisCatalogo.map((item) => ({
+        id: item.id,
+        nome: item.nome,
+        procedimentoIds: item.procedimentoIds ?? [],
+      })),
+    [profissionaisCatalogo],
+  )
+
   // Slots 'Disponível' (gerados na 2A) por profissional + data (ISO) para o modal
   // de novo agendamento — item.data vem como DD/MM/AAAA (formatDate), reconverto.
   const availableSlots = useMemo(
@@ -179,19 +194,7 @@ export function AgendaView() {
           (item) =>
             (item.paciente && item.paciente.trim().length > 0) || item.status === 'Disponível',
         )
-        .map((item) => ({
-          id: item.id,
-          hora: item.horario,
-          horaFim: item.horarioFim,
-          pacienteId: item.pacienteId,
-          paciente: item.paciente,
-          profissionalId: item.profissionalId,
-          profissional: item.profissional,
-          status: item.status,
-          data: item.data,
-          foraJanela: item.foraJanela,
-          motivoEncaixe: item.motivoEncaixe,
-        })),
+        .map(mapAgendaItemToSlot),
     [filteredAgenda],
   )
   // Agenda pessoal: compromissos SEM paciente (reuniões, tarefas, lembretes) — exclui slots "Disponível"
@@ -211,19 +214,7 @@ export function AgendaView() {
   )
   const personalAgendaSlots = useMemo<AgendaSlot[]>(
     () =>
-      personalAgenda.map((item) => ({
-        id: item.id,
-        hora: item.horario,
-        horaFim: item.horarioFim,
-        pacienteId: item.pacienteId,
-        paciente: item.paciente,
-        profissionalId: item.profissionalId,
-        profissional: item.profissional,
-        status: item.status,
-        data: item.data,
-        foraJanela: item.foraJanela,
-        motivoEncaixe: item.motivoEncaixe,
-      })),
+      personalAgenda.map(mapAgendaItemToSlot),
     [personalAgenda],
   )
   const activeAgendaSlots =
@@ -255,6 +246,10 @@ export function AgendaView() {
     createTarefa: async (payload) => {
       await createTarefa(payload)
     },
+    registerAgendamentoPagamento: async (payload) => {
+      await api.post('/api/agenda/pagamentos', payload)
+    },
+    reloadAgenda,
     findPacienteId,
   })
 
@@ -312,6 +307,8 @@ export function AgendaView() {
     plataformaOnline?: string
     foraJanela?: boolean
     motivoEncaixe?: string
+    procedimentoId?: string
+    valorProcedimento?: number
   }) => {
     try {
       // Item 15a — envia o UUID do profissional (resolvido do nome escolhido no
@@ -332,6 +329,8 @@ export function AgendaView() {
         plataformaOnline: payload.plataformaOnline,
         foraJanela: payload.foraJanela,
         motivoEncaixe: payload.motivoEncaixe,
+        procedimentoId: payload.procedimentoId,
+        valorProcedimento: payload.valorProcedimento,
       })
       toast.success(
         payload.foraJanela ? 'Encaixe registrado com sucesso.' : 'Agendamento criado com sucesso.',
@@ -816,8 +815,9 @@ export function AgendaView() {
                   <p className="text-xs text-app-text-secondary dark:text-app-text-muted">Status</p>
                   <div className="flex flex-wrap gap-4 text-xs text-app-text-secondary dark:text-white/80">
                     {[
+                      ['Agendado', 'bg-slate-400 dark:bg-slate-500'],
                       ['Confirmado', 'bg-app-primary'],
-                      ['Check-in', 'bg-app-primary'],
+                      ['Check-in', 'bg-sky-600'],
                       ['Em Atendimento', 'bg-indigo-600'],
                       ['Em Atraso', 'bg-[var(--app-warning-text)]'],
                       ['Cancelado', 'bg-[var(--app-danger-text)]'],
@@ -835,9 +835,18 @@ export function AgendaView() {
                     Pagamento
                   </p>
                   <div className="flex flex-wrap gap-4 text-xs text-app-text-secondary dark:text-white/80">
-                    <span>Pago</span>
-                    <span>Pago Parcial</span>
-                    <span>Pendente</span>
+                    {(
+                      [
+                        ['Pago', getPagamentoLegendDot('Pago')],
+                        ['Pago Parcial', getPagamentoLegendDot('Parcial')],
+                        ['Pendente', getPagamentoLegendDot('Pendente')],
+                      ] as const
+                    ).map(([label, tone]) => (
+                      <div key={label} className="flex items-center gap-1.5">
+                        <div className={`h-2.5 w-2.5 rounded-full ${tone}`} />
+                        <span>{label}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1156,6 +1165,7 @@ export function AgendaView() {
         }}
         currentDate={calendar.currentDate}
         professionals={professionalOptions}
+        professionalDetails={professionalDetailsForAgendamento}
         patients={patientOptions}
         availableSlots={availableSlots}
         initialPatientId={preselectedPatientId}
@@ -1228,15 +1238,15 @@ export function AgendaView() {
         isOpen={actions.activeModal === 'detalhes'}
         onClose={() => actions.setActiveModal(null)}
         agenda={
-          actions.selectedSlot
+          selectedAgendaItem
             ? {
-                paciente: actions.selectedSlot.paciente,
-                especialista: actions.selectedSlot.profissional,
-                data: actions.selectedSlot.data,
-                horario: actions.selectedSlot.hora,
-                tipo: 'Consulta',
-                status: actions.selectedSlot.status,
-                pagamento: 'Não informado',
+                paciente: selectedAgendaItem.paciente,
+                especialista: selectedAgendaItem.profissional,
+                data: selectedAgendaItem.data ?? '',
+                horario: selectedAgendaItem.horario,
+                tipo: selectedAgendaItem.procedimento ?? selectedAgendaItem.tipo ?? 'Consulta',
+                status: selectedAgendaItem.status,
+                pagamento: selectedAgendaItem.pagamento ?? 'Pendente',
               }
             : null
         }
@@ -1248,17 +1258,19 @@ export function AgendaView() {
           actions.setSelectedSlot(null)
         }}
         agenda={
-          actions.selectedSlot
+          selectedAgendaItem
             ? {
-                paciente: actions.selectedSlot.paciente,
-                profissional: actions.selectedSlot.profissional,
-                horario: actions.selectedSlot.hora,
-                valorProcedimento: actions.selectedSlot.valorProcedimento,
-                totalPago: actions.selectedSlot.totalPago,
-                dataPagamentoAnterior: actions.selectedSlot.dataPagamentoAnterior,
+                paciente: selectedAgendaItem.paciente,
+                profissional: selectedAgendaItem.profissional,
+                horario: selectedAgendaItem.horario,
+                procedimento: selectedAgendaItem.procedimento,
+                valorProcedimento: selectedAgendaItem.valorProcedimento,
+                totalPago: selectedAgendaItem.totalPago,
+                dataPagamentoAnterior: selectedAgendaItem.dataPagamentoAnterior,
               }
             : null
         }
+        agendamentoId={selectedAgendaItem?.id}
         onConfirm={actions.handleEmitCharge}
       />
       <AdiarCompromissoModal

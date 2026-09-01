@@ -563,7 +563,7 @@ export function NovaVendaModal({
                         Forma de Pagamento
                         {!paymentMethod && (
                           <span className="text-sm font-normal text-app-text-muted ml-2">
-                            (Opcional p/ Pendente)
+                            (Opcional — salva como ativa)
                           </span>
                         )}
                       </Label>
@@ -789,7 +789,7 @@ export function NovaVendaModal({
                         ? 'Processando...'
                         : paymentMethod
                           ? 'Finalizar Prescrição/Vendas'
-                          : 'Salvar como Pendente'}
+                          : 'Salvar prescrição ativa'}
                     </Button>
                     <Button
                       variant="ghost"

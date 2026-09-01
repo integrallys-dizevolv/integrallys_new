@@ -4,6 +4,7 @@ import { FileText, User, Stethoscope, Calendar, CreditCard, Globe, Monitor, Vide
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import type { AgendaItem } from '@/hooks/use-agenda'
+import { resolvePagamentoSituacao } from '../agenda.utils'
 
 interface VisualizarConsultaModalProps {
   open: boolean
@@ -162,13 +163,19 @@ export function VisualizarConsultaModal({ open, onOpenChange, item }: Visualizar
             <div className="space-y-2 pl-6">
               <div className="flex items-center justify-between text-xs">
                 <p className="font-normal text-app-text-secondary dark:text-app-text-muted">Situação:</p>
-                <p className="font-normal text-app-text-primary dark:text-white">{item.pagamento ?? 'Não informado'}</p>
+                <p className="font-normal text-app-text-primary dark:text-white">
+                  {resolvePagamentoSituacao({
+                    pagamento: item.pagamento,
+                    valorProcedimento: item.valorProcedimento,
+                    totalPago: item.totalPago,
+                  })}
+                </p>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <p className="font-normal text-app-text-secondary dark:text-app-text-muted">Valor:</p>
                 <p className="font-normal text-app-text-primary dark:text-white">{formatCurrency(item.valorProcedimento)}</p>
               </div>
-              {item.totalPago != null && (
+              {item.totalPago != null && item.totalPago > 0 && (
                 <div className="flex items-center justify-between text-xs">
                   <p className="font-normal text-app-text-secondary dark:text-app-text-muted">Total pago:</p>
                   <p className="font-normal text-app-text-primary dark:text-white">{formatCurrency(item.totalPago)}</p>

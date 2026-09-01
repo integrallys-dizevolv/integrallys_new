@@ -3,6 +3,7 @@ import { getAppSupabase, getEntityNameMap, supabaseErrorResponse } from '@/lib/a
 import { requirePermission } from '@/lib/authz'
 import { mapPrescricaoItem } from '@/lib/domain-mappers'
 import { stripPrescricaoFinancialFields } from '@/lib/financial-sanitize'
+import { isPrescriptionImmutable } from '@/lib/prescricao-immutability'
 import { authErrorResponse, forbiddenResponse, getRequestAuth } from '@/lib/request-auth'
 import { serverErrorResponse } from '@/lib/app-api'
 
@@ -572,7 +573,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const previousStatus = currentQuery.data?.status ? String(currentQuery.data.status) : ''
-  if (previousStatus === 'Convertida' || previousStatus === 'Cancelada') {
+  if (isPrescriptionImmutable(previousStatus)) {
     return serverErrorResponse(
       'Prescrição finalizada não pode ser alterada',
       'PRESCRIPTION_IMMUTABLE',
@@ -687,7 +688,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   const status = currentQuery.data?.status ? String(currentQuery.data.status) : ''
-  if (status === 'Convertida' || status === 'Cancelada') {
+  if (isPrescriptionImmutable(status)) {
     return serverErrorResponse(
       'Prescrição finalizada não pode ser excluída',
       'PRESCRIPTION_IMMUTABLE',

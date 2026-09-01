@@ -14,6 +14,7 @@ interface CobrancaInfo {
   paciente: string
   profissional: string
   horario: string
+  procedimento?: string
   valorProcedimento?: number
   totalPago?: number
   dataPagamentoAnterior?: string
@@ -49,10 +50,13 @@ export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, on
 
   const valorEfetivo = agenda?.valorProcedimento ?? 0
   const totalPago = agenda?.totalPago ?? 0
-  const saldoRestante = valorEfetivo - totalPago
+  const saldoRestante = Math.max(0, valorEfetivo - totalPago)
+  const quitado = valorEfetivo > 0 && saldoRestante <= 0
   const temPagamentoParcial = totalPago > 0 && saldoRestante > 0
 
-  const descricao = agenda ? `Cobrança de consulta - ${agenda.paciente}` : 'Cobrança de consulta'
+  const descricao = agenda
+    ? `Cobrança de consulta - ${agenda.paciente}${agenda.procedimento ? ` (${agenda.procedimento})` : ''}`
+    : 'Cobrança de consulta'
 
   useEffect(() => {
     if (!isOpen) {
@@ -60,8 +64,20 @@ export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, on
       setValorRecebido('')
       setObservacao('')
       setError('')
+      return
     }
-  }, [isOpen])
+
+    if (quitado) {
+      setValorRecebido('')
+      return
+    }
+
+    if (saldoRestante > 0) {
+      setValorRecebido(String(Number(saldoRestante.toFixed(2))))
+    } else {
+      setValorRecebido('')
+    }
+  }, [isOpen, quitado, saldoRestante])
 
   const handleConfirm = async () => {
     const parsed = Number(String(valorRecebido).replace(',', '.'))
@@ -84,7 +100,7 @@ export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, on
     })
   }
 
-  const valorOnline = saldoRestante > 0 ? saldoRestante : valorEfetivo
+  const valorOnline = quitado ? 0 : saldoRestante
 
   return (
     <>
@@ -136,9 +152,12 @@ export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, on
               <div className="flex items-center justify-between border-t border-[#bedbff] pt-2 text-xs dark:border-transparent">
                 <p className="font-medium text-app-text-primary dark:text-white">Saldo a receber:</p>
                 <p className="text-sm font-bold text-app-primary dark:text-[var(--app-info-text)]">
-                  {formatCurrency(saldoRestante > 0 ? saldoRestante : valorEfetivo)}
+                  {formatCurrency(quitado ? 0 : saldoRestante)}
                 </p>
               </div>
+              {quitado && (
+                <p className="text-xs text-[var(--app-success-text)]">Consulta já quitada.</p>
+              )}
             </div>
           </div>
 
@@ -216,9 +235,10 @@ export function EmitirCobrancaModal({ isOpen, onClose, agenda, agendamentoId, on
           </Button>
           <Button
             onClick={handleConfirm}
-            className="h-11 w-full rounded-integrallys bg-app-primary px-8 font-normal text-white shadow-sm transition-all active:scale-[0.98] hover:bg-app-primary-hover sm:w-auto"
+            disabled={quitado}
+            className="h-11 w-full rounded-integrallys bg-app-primary px-8 font-normal text-white shadow-sm transition-all active:scale-[0.98] hover:bg-app-primary-hover sm:w-auto disabled:opacity-50"
           >
-            Confirmar recebimento
+            {quitado ? 'Já quitado' : 'Confirmar recebimento'}
           </Button>
         </DialogFooter>
       </DialogContent>

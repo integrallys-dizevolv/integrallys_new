@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: import.meta.dirname,
   },
+  // Cache persistente do Turbopack em `.next/dev/cache/turbopack` cresce sem
+  // limite e, em filesystem lento (ex.: drive D:), pode deixar o dev preso em
+  // "Compiling..." com CPU alta mesmo sem requests.
+  experimental: {
+    turbopackFileSystemCacheForDev: false,
+  },
 }
 
 export default nextConfig

@@ -22,6 +22,8 @@ export interface AgendaItem {
   plataformaOnline?: string
   urlOnline?: string
   valorProcedimento?: number
+  procedimentoId?: string
+  procedimento?: string
   observacoes?: string
   pagamento?: string
   totalPago?: number
@@ -49,6 +51,8 @@ export interface AgendaInput {
   plataformaOnline?: string
   urlOnline?: string
   valorProcedimento?: number
+  procedimentoId?: string
+  procedimento?: string
   observacoes?: string
   foraJanela?: boolean
   motivoEncaixe?: string

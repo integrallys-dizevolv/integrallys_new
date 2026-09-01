@@ -93,6 +93,9 @@ Content-Type: application/json
 
 ### QA-1.5 — Tela grande ao vivo (mesmo PC + outro aparelho)
 
+> Verificação automatizada: `npm test -- src/hooks/use-prontuario-live-sync.test.ts`  
+> Registro de latência manual: [`homologacao-confirmacoes-roadmap.md`](homologacao-confirmacoes-roadmap.md)
+
 | # | Passo | Resultado esperado | Status |
 |---|--------|-------------------|--------|
 | 1.5.1 | Especialista inicia atendimento; abre **Tela Grande** (`?hardware=1&paciente_id=…`) | Viewer “ao vivo”, não a lista | ☐ |
@@ -130,6 +133,16 @@ Content-Type: application/json
 | 2.3.1 | Localizar prescrição com status **Convertida** | Status visível | ☐ |
 | 2.3.2 | Conferir ações na linha | Botões **Editar** / **Excluir** ocultos; mensagem de imutável (se houver) | ☐ |
 | 2.3.3 | (Opcional) Forçar PUT/DELETE na API | HTTP 409 `PRESCRIPTION_IMMUTABLE` | ☐ |
+
+### QA-2.4 — Prescrição Ativa editável (decisão de negócio)
+
+> Ver [`homologacao-confirmacoes-roadmap.md`](homologacao-confirmacoes-roadmap.md) — Opção A (atual) vs. Opção B (congelar após assinatura).
+
+| # | Passo | Resultado esperado | Status |
+|---|--------|-------------------|--------|
+| 2.4.1 | Especialista cria e assina prescrição | Status **Ativa** (não `Pendente`) | ☐ |
+| 2.4.2 | Recepção edita prescrição **Ativa** antes da venda | Salva sem erro | ☐ |
+| 2.4.3 | Após converter para **Convertida** | Editar/Excluir bloqueados (QA-2.3) | ☐ |
 
 ---
 
@@ -259,10 +272,10 @@ Content-Type: application/json
 |---|--------|------------------------|--------|
 | RN-01 | Especialista sem valores na prescrição | QA-2.1 | ☐ |
 | RN-02 | Só recepção/gestão com valores na venda | QA-2.2 | ☐ |
-| RN-03 | Prescrição imutável após Convertida | QA-2.3 | ☐ |
+| RN-03 | Prescrição imutável após Convertida | QA-2.3 + QA-2.4 | ☐ |
 | RN-04 | DRE reflete fluxo real | QA-4.1 + lançamento recente aparece | ☐ |
 | RN-05 | Unidade independente / auditável | QA-7.3 | ☐ |
-| RN-06 | Visual Natur & Vida | Conferir logo/cores/fonte em Config. clínica com o cliente | ☐ |
+| RN-06 | Visual Natur & Vida | Conferir logo/cores/fonte em Config. clínica (cor customizável por unidade) — ver [`homologacao-confirmacoes-roadmap.md`](homologacao-confirmacoes-roadmap.md) | ☐ |
 
 ---
 

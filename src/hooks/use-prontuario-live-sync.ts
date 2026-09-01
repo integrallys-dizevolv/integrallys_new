@@ -6,6 +6,28 @@ import { useAuth } from '@/hooks/use-auth'
 
 export const PRONTUARIO_LIVE_CHANNEL = 'integrallys-prontuario-live'
 
+/** Throttle do PUT ao servidor (aparelho separado). */
+export const PRONTUARIO_LIVE_PUBLISH_THROTTLE_MS = 350
+
+/** Intervalo de poll no viewer (aparelho separado). Meta de latência ~1 s. */
+export const PRONTUARIO_LIVE_SUBSCRIBE_POLL_MS = 500
+
+/** Latência teórica máxima publish + poll antes de RTT de rede. */
+export const PRONTUARIO_LIVE_MAX_SYNC_MS =
+  PRONTUARIO_LIVE_PUBLISH_THROTTLE_MS + PRONTUARIO_LIVE_SUBSCRIBE_POLL_MS
+
+/**
+ * Descarta updates mais antigos que o último aplicado (BC + poll).
+ */
+export function shouldApplyProntuarioLiveUpdate(
+  newestUpdatedAt: string | null,
+  incomingUpdatedAt: string | null,
+): boolean {
+  if (!incomingUpdatedAt) return false
+  if (!newestUpdatedAt) return true
+  return incomingUpdatedAt > newestUpdatedAt
+}
+
 export type ProntuarioLivePayload = {
   pacienteId: string
   texto: string
@@ -43,7 +65,7 @@ function postBroadcast(payload: ProntuarioLivePayload) {
 export function useProntuarioLivePublish(
   pacienteId: string | null | undefined,
   texto: string,
-  throttleMs = 350,
+  throttleMs = PRONTUARIO_LIVE_PUBLISH_THROTTLE_MS,
 ) {
   const api = useApi()
   const { user } = useAuth()
@@ -89,7 +111,7 @@ export function useProntuarioLivePublish(
  */
 export function useProntuarioLiveSubscribe(
   pacienteId: string | null | undefined,
-  pollMs = 500,
+  pollMs = PRONTUARIO_LIVE_SUBSCRIBE_POLL_MS,
 ) {
   const api = useApi()
   const [texto, setTexto] = useState('')
@@ -107,9 +129,8 @@ export function useProntuarioLiveSubscribe(
       updatedAt: string | null
       pacienteNome?: string
     }) => {
-      if (!payload.updatedAt) return
-      if (newest.current && payload.updatedAt <= newest.current) return
-      newest.current = payload.updatedAt
+      if (!shouldApplyProntuarioLiveUpdate(newest.current, payload.updatedAt)) return
+      newest.current = payload.updatedAt ?? null
       setTexto(payload.texto)
       setUpdatedAt(payload.updatedAt)
       if (payload.pacienteNome) setPacienteNome(payload.pacienteNome)

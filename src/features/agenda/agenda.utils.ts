@@ -1,4 +1,33 @@
+import type { AgendaItem } from '@/hooks/use-agenda'
 import type { AgendaSlot, MonthDayCell, ViewMode, WeekDayData } from './agenda.types'
+
+/** Converte item da API em slot da grade (preserva pagamento e procedimento). */
+export function mapAgendaItemToSlot(item: AgendaItem): AgendaSlot {
+  return {
+    id: item.id,
+    hora: item.horario,
+    horaFim: item.horarioFim,
+    pacienteId: item.pacienteId,
+    paciente: item.paciente,
+    profissionalId: item.profissionalId,
+    profissional: item.profissional,
+    status: item.status,
+    data: item.data,
+    tipo: item.tipo,
+    modalidade: item.modalidade,
+    plataformaOnline: item.plataformaOnline,
+    urlOnline: item.urlOnline,
+    valorProcedimento: item.valorProcedimento,
+    procedimentoId: item.procedimentoId,
+    procedimento: item.procedimento,
+    observacoes: item.observacoes,
+    pagamento: item.pagamento,
+    totalPago: item.totalPago,
+    dataPagamentoAnterior: item.dataPagamentoAnterior,
+    foraJanela: item.foraJanela,
+    motivoEncaixe: item.motivoEncaixe,
+  }
+}
 
 export function formatAgendaDate(date: Date, viewMode: ViewMode) {
   const formatter = new Intl.DateTimeFormat(
@@ -48,11 +77,78 @@ export function normalizeAgendaStatus(status: string) {
   return status || 'Agendado'
 }
 
+export type PagamentoSituacao = 'Pago' | 'Parcial' | 'Pendente' | 'Sem valor'
+
+/** Situação de pagamento para ícones/cores na grade — deriva do backend ou dos valores. */
+export function resolvePagamentoSituacao(input: {
+  pagamento?: string
+  valorProcedimento?: number
+  totalPago?: number
+}): PagamentoSituacao {
+  const valor = input.valorProcedimento ?? 0
+  const pago = input.totalPago ?? 0
+
+  // Valores reais prevalecem sobre o rótulo da view (evita falso "Pago" na grade).
+  if (valor > 0) {
+    if (pago <= 0) return 'Pendente'
+    if (pago >= valor) return 'Pago'
+    return 'Parcial'
+  }
+
+  const raw = (input.pagamento ?? '').trim().toLowerCase()
+  if (raw.includes('parcial')) return 'Parcial'
+  if (raw === 'pago' || raw.includes('quitad')) return 'Pago'
+  if (raw.includes('sem valor')) return 'Sem valor'
+  if (raw === 'pendente') return 'Pendente'
+
+  return 'Sem valor'
+}
+
+export function getPagamentoIconTone(situacao: PagamentoSituacao): string {
+  switch (situacao) {
+    case 'Pago':
+      return 'text-[var(--app-success-text)]'
+    case 'Parcial':
+      return 'text-[var(--app-warning-text)]'
+    case 'Pendente':
+      return 'text-slate-500 dark:text-slate-400'
+    case 'Sem valor':
+      return 'text-app-text-muted dark:text-app-text-muted'
+  }
+}
+
+export function getPagamentoButtonTone(situacao: PagamentoSituacao): string {
+  switch (situacao) {
+    case 'Pago':
+      return 'bg-[color:var(--app-success-bg)]/60 hover:bg-[color:var(--app-success-bg)]'
+    case 'Parcial':
+      return 'bg-[color:var(--app-warning-bg)]/60 hover:bg-[color:var(--app-warning-bg)]'
+    case 'Pendente':
+      return 'bg-slate-100/80 hover:bg-slate-200/80 dark:bg-slate-800/40 dark:hover:bg-slate-800'
+    case 'Sem valor':
+      return 'hover:bg-app-bg-secondary/80 dark:hover:bg-app-hover'
+  }
+}
+
+export function getPagamentoLegendDot(situacao: PagamentoSituacao): string {
+  switch (situacao) {
+    case 'Pago':
+      return 'bg-[var(--app-success-text)]'
+    case 'Parcial':
+      return 'bg-[var(--app-warning-text)]'
+    case 'Pendente':
+      return 'bg-slate-400 dark:bg-slate-500'
+    case 'Sem valor':
+      return 'bg-app-text-muted'
+  }
+}
+
 export function getStatusButtonTone(status: string) {
   switch (normalizeAgendaStatus(status)) {
     case 'Confirmado':
-    case 'Agendado':
       return 'bg-app-primary'
+    case 'Agendado':
+      return 'bg-slate-500'
     case 'Check-in':
     case 'Aguardando':
       return 'bg-sky-600'
@@ -81,8 +177,9 @@ export function getStatusButtonTone(status: string) {
 export function getStatusCardTone(status: string) {
   switch (normalizeAgendaStatus(status)) {
     case 'Confirmado':
-    case 'Agendado':
       return 'bg-[#eaf2ff] dark:bg-[#10213e] border-l-4 border-app-primary'
+    case 'Agendado':
+      return 'bg-slate-50 dark:bg-slate-900/35 border-l-4 border-slate-400 dark:border-slate-500'
     case 'Check-in':
       return 'bg-sky-50 dark:bg-sky-950/30 border-l-4 border-app-primary'
     case 'Em Atendimento':

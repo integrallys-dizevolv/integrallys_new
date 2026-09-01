@@ -9,6 +9,7 @@ import {
 } from '@/lib/app-api'
 import { requirePermission } from '@/lib/authz'
 import { mapAgendaItem } from '@/lib/domain-mappers'
+import { resolveAgendamentoProcedimento } from '@/lib/agendamento-procedimento'
 import { authErrorResponse, getRequestAuth } from '@/lib/request-auth'
 import {
   buildInsertPayload,
@@ -103,7 +104,7 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
   let query = supabase
     .from('agendamentos')
     .select(
-      'id,paciente_id,profissional_id,horario_inicio,horario_fim,status,data_agendamento,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes,tipo_encaixe,fora_janela,motivo_encaixe',
+      'id,paciente_id,profissional_id,procedimento_id,horario_inicio,horario_fim,status,data_agendamento,tipo,titulo,local,participantes,modalidade_atendimento,plataforma_online,url_online,valor_procedimento,observacoes,tipo_encaixe,fora_janela,motivo_encaixe',
     )
     .order('data_agendamento', { ascending: true })
     .order('horario_inicio', { ascending: true })
@@ -126,7 +127,7 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
 
   const agendaIds = (data ?? []).map((row) => String(row.id ?? ''))
 
-  const [pacientesResult, profissionaisResult, pagamentosResult] = await Promise.all([
+  const [pacientesResult, profissionaisResult, procedimentosResult, pagamentosResult] = await Promise.all([
     getEntityNameMap(
       supabase,
       'pacientes',
@@ -136,6 +137,11 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
       supabase,
       'usuarios',
       (data ?? []).map((row) => String(row.profissional_id ?? '')),
+    ),
+    getEntityNameMap(
+      supabase,
+      'procedimentos',
+      (data ?? []).map((row) => String(row.procedimento_id ?? '')),
     ),
     agendaIds.length > 0
       ? supabase
@@ -157,6 +163,8 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
     return supabaseErrorResponse(pacientesResult.error, 'Falha ao carregar agenda')
   if (profissionaisResult.error)
     return supabaseErrorResponse(profissionaisResult.error, 'Falha ao carregar agenda')
+  if (procedimentosResult.error)
+    return supabaseErrorResponse(procedimentosResult.error, 'Falha ao carregar agenda')
 
   const pagamentoMap: Record<
     string,
@@ -219,6 +227,7 @@ async function listAgenda(session: Awaited<ReturnType<typeof getRequestAuth>>) {
         ...row,
         paciente_nome: pacientesResult.map[String(row.paciente_id ?? '')] ?? '',
         profissional_nome: profissionaisResult.map[String(row.profissional_id ?? '')] ?? '',
+        procedimento_nome: procedimentosResult.map[String(row.procedimento_id ?? '')] ?? '',
         horario: String(row.horario_inicio ?? ''),
         pagamento_situacao: pag?.situacao,
         total_pago: pag?.total_pago,
@@ -331,13 +340,27 @@ export async function POST(request: NextRequest) {
     return supabaseErrorResponse(scopedContext.error, 'Falha ao criar agendamento')
   }
 
+  const procResolved = await resolveAgendamentoProcedimento(supabase, {
+    procedimentoId: body.procedimentoId,
+    valorProcedimento: body.valorProcedimento,
+    profissionalId: pacienteId ? profissionalId : null,
+  })
+  if (!procResolved.ok) {
+    return serverErrorResponse(procResolved.message, procResolved.code, 400)
+  }
+  const enrichedBody: Record<string, unknown> = {
+    ...body,
+    procedimentoId: procResolved.data.procedimentoId,
+    valorProcedimento: procResolved.data.valorProcedimento,
+  }
+
   const patientUnitId = pacienteId ? await resolvePatientUnitId(supabase, pacienteId) : null
   const unidadeId = scopedContext.unidadeId ?? patientUnitId
 
-  const foraJanela = body.foraJanela === true
+  const foraJanela = enrichedBody.foraJanela === true
   const motivoEncaixe =
-    typeof body.motivoEncaixe === 'string' && body.motivoEncaixe.trim().length > 0
-      ? body.motivoEncaixe.trim()
+    typeof enrichedBody.motivoEncaixe === 'string' && enrichedBody.motivoEncaixe.trim().length > 0
+      ? enrichedBody.motivoEncaixe.trim()
       : null
 
   // CONSULTA (com paciente) sem encaixe: ocupa um slot 'Disponível' gerado (2A),
@@ -347,9 +370,9 @@ export async function POST(request: NextRequest) {
   if (pacienteId && decidirFluxoAgendamento({ pacienteId, foraJanela }) === 'ocupar') {
     const result = await ocuparSlotDisponivel(supabase, {
       profissionalId,
-      data: String(body.data),
-      horario: String(body.horario),
-      update: buildOccupyUpdate(body, pacienteId),
+      data: String(enrichedBody.data),
+      horario: String(enrichedBody.horario),
+      update: buildOccupyUpdate(enrichedBody, pacienteId),
     })
 
     if (result.kind === 'error') {
@@ -379,7 +402,7 @@ export async function POST(request: NextRequest) {
         pacienteId,
         profissionalId,
         criadoPorId: session.userId,
-        body,
+        body: enrichedBody,
         foraJanela,
         motivoEncaixe,
       }),
@@ -423,6 +446,15 @@ export async function PUT(request: NextRequest) {
     return supabaseErrorResponse(scopedContext.error, 'Falha ao atualizar agendamento')
   }
 
+  const procResolved = await resolveAgendamentoProcedimento(supabase, {
+    procedimentoId: body.procedimentoId,
+    valorProcedimento: body.valorProcedimento,
+    profissionalId,
+  })
+  if (!procResolved.ok) {
+    return serverErrorResponse(procResolved.message, procResolved.code, 400)
+  }
+
   const patientUnitId = pacienteId ? await resolvePatientUnitId(supabase, pacienteId) : null
   const unidadeId = scopedContext.unidadeId ?? patientUnitId
 
@@ -443,7 +475,8 @@ export async function PUT(request: NextRequest) {
       modalidade_atendimento: body.modalidade ?? (pacienteId ? 'Presencial' : null),
       plataforma_online: body.plataformaOnline ?? null,
       url_online: body.urlOnline ?? null,
-      valor_procedimento: body.valorProcedimento ?? null,
+      valor_procedimento: procResolved.data.valorProcedimento ?? body.valorProcedimento ?? null,
+      procedimento_id: procResolved.data.procedimentoId ?? body.procedimentoId ?? null,
       observacoes: body.observacoes ?? null,
       updated_at: new Date().toISOString(),
     })

@@ -48,6 +48,8 @@ export function mapAgendaItem(row: Record<string, unknown>) {
     plataformaOnline: row.plataforma_online ? String(row.plataforma_online) : undefined,
     urlOnline: row.url_online ? String(row.url_online) : undefined,
     valorProcedimento: row.valor_procedimento != null ? Number(row.valor_procedimento) : undefined,
+    procedimentoId: row.procedimento_id ? String(row.procedimento_id) : undefined,
+    procedimento: row.procedimento_nome ? String(row.procedimento_nome) : undefined,
     observacoes: row.observacoes ? String(row.observacoes) : undefined,
     pagamento: row.pagamento_situacao ? String(row.pagamento_situacao) : undefined,
     totalPago: row.total_pago != null ? Number(row.total_pago) : undefined,

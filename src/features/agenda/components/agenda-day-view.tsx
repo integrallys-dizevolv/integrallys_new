@@ -13,10 +13,13 @@ import {
 import type { AgendaSlot } from '../agenda.types'
 import {
   formatSlotDuration,
+  getPagamentoButtonTone,
+  getPagamentoIconTone,
   getStatusBadgeTone,
   getStatusButtonTone,
   getStatusCardTone,
   normalizeAgendaStatus,
+  resolvePagamentoSituacao,
 } from '../agenda.utils'
 import type { AgendaBloqueio } from '../hooks/use-agenda-bloqueios'
 
@@ -142,6 +145,11 @@ export function AgendaDayView({
               {itemsInSlot.map((item) => {
                 const currentStatus = normalizeAgendaStatus(item.status)
                 const duracao = formatSlotDuration(item.hora, item.horaFim)
+                const pagamentoSituacao = resolvePagamentoSituacao({
+                  pagamento: item.pagamento,
+                  valorProcedimento: item.valorProcedimento,
+                  totalPago: item.totalPago,
+                })
 
                 return (
                   <div
@@ -169,7 +177,7 @@ export function AgendaDayView({
                             {item.paciente}
                           </p>
                           <span className="app-status-neutral px-2 py-0.5 rounded text-xs font-normal whitespace-nowrap">
-                            Consulta
+                            {item.procedimento ?? item.tipo ?? 'Consulta'}
                           </span>
                           {item.foraJanela && (
                             <span
@@ -229,10 +237,11 @@ export function AgendaDayView({
                         <button
                           type="button"
                           onClick={() => onOpenCharge(item)}
-                          aria-label="Emitir cobrança"
-                          className="h-8 w-8 flex items-center justify-center hover:bg-app-card/50 dark:hover:bg-app-hover rounded-lg transition-colors"
+                          aria-label={`Pagamento: ${pagamentoSituacao} — emitir cobrança`}
+                          title={`Pagamento: ${pagamentoSituacao}`}
+                          className={`h-8 w-8 flex items-center justify-center rounded-lg transition-colors ${getPagamentoButtonTone(pagamentoSituacao)}`}
                         >
-                          <DollarSign className="h-4 w-4 text-[var(--app-success-text)]" />
+                          <DollarSign className={`h-4 w-4 ${getPagamentoIconTone(pagamentoSituacao)}`} />
                         </button>
                         <button
                           type="button"
