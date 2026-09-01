@@ -1,0 +1,21 @@
+#!/bin/sh
+# Garante que commits neste repo usem a identidade Integrallys (conta GitHub do projeto).
+
+EXPECTED_NAME="integrallys-dizevolv"
+EXPECTED_EMAIL="integrallys.dezevolv@gmail.com"
+
+ACTUAL_NAME=$(git config --local user.name 2>/dev/null)
+ACTUAL_EMAIL=$(git config --local user.email 2>/dev/null)
+
+if [ "$ACTUAL_NAME" != "$EXPECTED_NAME" ] || [ "$ACTUAL_EMAIL" != "$EXPECTED_EMAIL" ]; then
+  echo "Erro: commits neste repositório devem usar:"
+  echo "  user.name  = $EXPECTED_NAME"
+  echo "  user.email = $EXPECTED_EMAIL"
+  echo ""
+  echo "Configure com:"
+  echo "  git config --local user.name \"$EXPECTED_NAME\""
+  echo "  git config --local user.email \"$EXPECTED_EMAIL\""
+  exit 1
+fi
+
+exit 0
